@@ -49,9 +49,9 @@ jobs:
     #       POSTGRES_PASSWORD: secretpassword
     env:
       BATON_LOG_LEVEL: debug
-      # Add any environment variables needed to run baton-okta-ciam-workforce
-      # BATON_BASE_URL: 'http://localhost:8080'
-      # BATON_ACCESS_TOKEN: 'secret_token'
+      BATON_API_TOKEN: ${{ secrets.BATON_API_TOKEN }}
+      BATON_DOMAIN: 'integrator-8338476.okta.com'
+      BATON_EMAIL_DOMAINS: 'insulator.one'
     steps:
       - name: Install Go
         uses: actions/setup-go@v5
