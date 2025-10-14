@@ -24,7 +24,7 @@ type Connector struct {
 
 // New creates a new Okta CIAM v2 connector instance.
 func New(ctx context.Context, domain, apiToken string, emailDomains []string, groupNameFilter string) (*Connector, error) {
-	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, nil))
+	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(false, nil))
 	if err != nil {
 		return nil, fmt.Errorf("okta-ciam-v2: failed to create HTTP client: %w", err)
 	}
@@ -97,11 +97,15 @@ func (c *Connector) ResourceSyncers(ctx context.Context) []connectorbuilder.Reso
 }
 
 // parsePageToken parses a page token into a pagination bag and page string.
-func parsePageToken(token string, resourceID *v2.ResourceId) (*pagination.Bag, string, error) {
+func parsePageToken(pToken *pagination.Token, resourceID *v2.ResourceId) (*pagination.Bag, string, error) {
 	bag := &pagination.Bag{}
-	err := bag.Unmarshal(token)
-	if err != nil {
-		return nil, "", err
+
+	// Check if pToken is nil or has an empty token
+	if pToken != nil && pToken.Token != "" {
+		err := bag.Unmarshal(pToken.Token)
+		if err != nil {
+			return nil, "", err
+		}
 	}
 
 	if bag.Current() == nil {
@@ -112,4 +116,15 @@ func parsePageToken(token string, resourceID *v2.ResourceId) (*pagination.Bag, s
 	}
 
 	return bag, bag.PageToken(), nil
+}
+
+// getPageSize safely extracts the page size from a pagination token, returning a default if nil or 0.
+func getPageSize(pToken *pagination.Token, defaultSize int) int {
+	if pToken == nil {
+		return defaultSize
+	}
+	if pToken.Size == 0 {
+		return defaultSize
+	}
+	return pToken.Size
 }

@@ -48,7 +48,7 @@ func (u *userBuilder) List(
 	parentResourceID *v2.ResourceId,
 	pToken *pagination.Token,
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: userResourceType.Id})
+	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: userResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
 	}
@@ -56,10 +56,7 @@ func (u *userBuilder) List(
 	var rv []*v2.Resource
 
 	// Default page size if not specified
-	pageSize := pToken.Size
-	if pageSize == 0 {
-		pageSize = 50
-	}
+	pageSize := getPageSize(pToken, 50)
 
 	// List users with the search query "status pr" to get all users including deactivated ones
 	req := u.connector.client.UserAPI.ListUsers(ctx).
@@ -125,7 +122,7 @@ func (u *userBuilder) Grants(
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
 	userID := resource.Id.GetResource()
 
-	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: userResourceType.Id})
+	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: userResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
 	}
@@ -195,10 +192,7 @@ func (u *userBuilder) Grants(
 	}
 
 	// Fetch groups for this user with pagination
-	pageSize := pToken.Size
-	if pageSize == 0 {
-		pageSize = 50
-	}
+	pageSize := getPageSize(pToken, 50)
 
 	req := u.connector.client.UserAPI.ListUserGroups(ctx, userID).
 		Limit(toInt32(pageSize))

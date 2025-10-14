@@ -39,7 +39,7 @@ func (r *customRoleBuilder) List(
 	parentResourceID *v2.ResourceId,
 	pToken *pagination.Token,
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: customRoleResourceType.Id})
+	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: customRoleResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
 	}

@@ -39,7 +39,7 @@ func (g *groupBuilder) List(
 	parentResourceID *v2.ResourceId,
 	pToken *pagination.Token,
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: groupResourceType.Id})
+	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: groupResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
 	}
@@ -47,10 +47,7 @@ func (g *groupBuilder) List(
 	var rv []*v2.Resource
 
 	// Default page size if not specified
-	pageSize := pToken.Size
-	if pageSize == 0 {
-		pageSize = 50
-	}
+	pageSize := getPageSize(pToken, 50)
 
 	// List groups
 	req := g.connector.client.GroupAPI.ListGroups(ctx).
