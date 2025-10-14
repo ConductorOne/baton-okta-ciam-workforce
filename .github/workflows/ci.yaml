@@ -51,7 +51,7 @@ jobs:
       BATON_LOG_LEVEL: debug
       BATON_API_TOKEN: ${{ secrets.BATON_API_TOKEN }}
       BATON_DOMAIN: 'integrator-8338476.okta.com'
-      BATON_EMAIL_DOMAINS: 'insulator.one'
+      BATON_EMAIL_DOMAINS: 'insulator.com'
     steps:
       - name: Install Go
         uses: actions/setup-go@v5
@@ -73,6 +73,6 @@ jobs:
         uses: ConductorOne/github-workflows/actions/sync-test@v2
         with:
           connector: ./baton-okta-ciam-workforce
-          baton-entitlement: 'entitlement:group:1234:member'
-          baton-principal: 'user:9876'
+          baton-entitlement: 'group:00gw08799oN84g2FA697:member'
+          baton-principal: 'user:00uw05rqxhaVFs0Jw697'
           baton-principal-type: 'user'
