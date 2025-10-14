@@ -1,11 +1,10 @@
-//go:build !generate
-
 package main
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	cfg "github.com/conductorone/baton-okta-ciam-workforce/pkg/config"
 	"github.com/conductorone/baton-okta-ciam-workforce/pkg/connector"
@@ -25,8 +24,8 @@ func main() {
 	_, cmd, err := config.DefineConfiguration(
 		ctx,
 		"baton-okta-ciam-workforce",
-		getConnector[*cfg.OktaCiamWorkforce],
-		cfg.Config,
+		getConnector,
+		cfg.ConfigurationSchema,
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -42,22 +41,35 @@ func main() {
 	}
 }
 
-// TODO: After the config has been generated, update this function to use the config.
-func getConnector[T field.Configurable](ctx context.Context, config *cfg.OktaCiamWorkforce) (types.ConnectorServer, error) {
-	l := ctxzap.Extract(ctx)
-	if err := field.Validate(cfg.Config, config); err != nil {
+func getConnector(ctx context.Context, oktaCfg *cfg.OktaCiamV2) (types.ConnectorServer, error) {
+	if err := field.Validate(cfg.ConfigurationSchema, oktaCfg); err != nil {
 		return nil, err
 	}
 
-	cb, err := connector.New(ctx)
+	l := ctxzap.Extract(ctx)
+
+	// Normalize email domains to lowercase
+	var normalizedEmailDomains []string
+	for _, domain := range oktaCfg.EmailDomains {
+		normalizedEmailDomains = append(normalizedEmailDomains, strings.TrimSpace(strings.ToLower(domain)))
+	}
+
+	// Normalize group name filter to lowercase
+	groupNameFilter := strings.TrimSpace(strings.ToLower(oktaCfg.GroupNameFilter))
+
+	// Create connector
+	c, err := connector.New(ctx, oktaCfg.Domain, oktaCfg.ApiToken, normalizedEmailDomains, groupNameFilter, oktaCfg.SkipSecondaryEmails)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err
 	}
-	connector, err := connectorbuilder.NewConnector(ctx, cb)
+
+	// Build and return connector server
+	connectorServer, err := connectorbuilder.NewConnector(ctx, c)
 	if err != nil {
-		l.Error("error creating connector", zap.Error(err))
+		l.Error("error building connector server", zap.Error(err))
 		return nil, err
 	}
-	return connector, nil
+
+	return connectorServer, nil
 }

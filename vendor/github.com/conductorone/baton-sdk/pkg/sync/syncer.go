@@ -21,7 +21,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	batonGrant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.opentelemetry.io/otel"
@@ -393,7 +392,7 @@ func (s *syncer) Sync(ctx context.Context) error {
 
 	// Add ActiveSync to context once after we have the syncID
 	if syncID != "" {
-		ctx = sessions.SetSyncIDInContext(ctx, syncID)
+		ctx = types.SetSyncIDInContext(ctx, syncID)
 	}
 
 	span.SetAttributes(attribute.String("sync_id", syncID))
@@ -1418,13 +1417,7 @@ func (s *syncer) SyncGrantExpansion(ctx context.Context) error {
 				zap.Any("cycle", comps[0]),
 				zap.Any("scc_metrics", sccMetrics),
 			)
-			l.Debug("initial graph stats",
-				zap.Int("edges", len(entitlementGraph.Edges)),
-				zap.Int("nodes", len(entitlementGraph.Nodes)),
-				zap.Int("actions", len(entitlementGraph.Actions)),
-				zap.Int("depth", entitlementGraph.Depth),
-				zap.Bool("has_no_cycles", entitlementGraph.HasNoCycles),
-			)
+			l.Debug("initial graph", zap.Any("initial graph", entitlementGraph))
 			if dontFixCycles {
 				return fmt.Errorf("cycles detected in entitlement graph")
 			}
@@ -2728,13 +2721,6 @@ func (s *syncer) Close(ctx context.Context) error {
 		err = s.store.Close()
 		if err != nil {
 			return fmt.Errorf("error closing store: %w", err)
-		}
-	}
-
-	if s.externalResourceReader != nil {
-		err = s.externalResourceReader.Close()
-		if err != nil {
-			return fmt.Errorf("error closing external resource reader: %w", err)
 		}
 	}
 

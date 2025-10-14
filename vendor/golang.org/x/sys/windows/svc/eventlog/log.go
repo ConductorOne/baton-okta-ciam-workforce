@@ -29,19 +29,11 @@ func OpenRemote(host, source string) (*Log, error) {
 	if source == "" {
 		return nil, errors.New("Specify event log source")
 	}
-	var hostPointer *uint16
+	var s *uint16
 	if host != "" {
-		var err error
-		hostPointer, err = syscall.UTF16PtrFromString(host)
-		if err != nil {
-			return nil, err
-		}
+		s = syscall.StringToUTF16Ptr(host)
 	}
-	sourcePointer, err := syscall.UTF16PtrFromString(source)
-	if err != nil {
-		return nil, err
-	}
-	h, err := windows.RegisterEventSource(hostPointer, sourcePointer)
+	h, err := windows.RegisterEventSource(s, syscall.StringToUTF16Ptr(source))
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +46,7 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) report(etype uint16, eid uint32, msg string) error {
-	msgPointer, err := syscall.UTF16PtrFromString(msg)
-	if err != nil {
-		return err
-	}
-	ss := []*uint16{msgPointer}
+	ss := []*uint16{syscall.StringToUTF16Ptr(msg)}
 	return windows.ReportEvent(l.Handle, etype, 0, eid, 0, 1, 0, &ss[0], nil)
 }
 

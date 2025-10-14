@@ -29,7 +29,7 @@ import (
 	c1_lambda_config "github.com/conductorone/baton-sdk/pkg/lambda/grpc/config"
 	"github.com/conductorone/baton-sdk/pkg/lambda/grpc/middleware"
 	"github.com/conductorone/baton-sdk/pkg/session"
-	"github.com/conductorone/baton-sdk/pkg/types/sessions"
+	"github.com/conductorone/baton-sdk/pkg/types"
 	"google.golang.org/grpc"
 )
 
@@ -67,16 +67,12 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			logLevel = "info"
 		}
 
-		initialLogFields := map[string]interface{}{
-			"tenant_id":          os.Getenv("tenant"),
-			"connector_id":       os.Getenv("connector"),
-			"app_id":             os.Getenv("app"),
-			"release_version":    os.Getenv("version"),
-			"installation":       os.Getenv("installation"),
-			"catalog_id":         os.Getenv("catalog_id"),
-			"catalog_name":       os.Getenv("catalog_name"),
-			"tenant_name":        os.Getenv("tenant_name"),
-			"tenant_is_internal": os.Getenv("tenant_is_internal"),
+		initalLogFields := map[string]interface{}{
+			"tenant":       os.Getenv("tenant"),
+			"connector":    os.Getenv("connector"),
+			"installation": os.Getenv("installation"),
+			"app":          os.Getenv("app"),
+			"version":      os.Getenv("version"),
 		}
 
 		runCtx, err := initLogger(
@@ -84,13 +80,13 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			name,
 			logging.WithLogFormat(v.GetString("log-format")),
 			logging.WithLogLevel(logLevel),
-			logging.WithInitialFields(initialLogFields),
+			logging.WithInitialFields(initalLogFields),
 		)
 		if err != nil {
 			return err
 		}
 
-		runCtx, otelShutdown, err := initOtel(runCtx, name, v, initialLogFields)
+		runCtx, otelShutdown, err := initOtel(runCtx, name, v, initalLogFields)
 		if err != nil {
 			return err
 		}
@@ -227,8 +223,8 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 }
 
 // createSessionCacheConstructor creates a session cache constructor function that uses the provided gRPC client
-func createSessionCacheConstructor(grpcClient grpc.ClientConnInterface) sessions.SessionStoreConstructor {
-	return func(ctx context.Context, opt ...sessions.SessionStoreConstructorOption) (sessions.SessionStore, error) {
+func createSessionCacheConstructor(grpcClient grpc.ClientConnInterface) types.SessionCacheConstructor {
+	return func(ctx context.Context, opt ...types.SessionCacheConstructorOption) (types.SessionCache, error) {
 		// Create the gRPC session client using the same gRPC connection
 		client := pb_connector_api.NewBatonSessionServiceClient(grpcClient)
 		// Create and return the session cache
