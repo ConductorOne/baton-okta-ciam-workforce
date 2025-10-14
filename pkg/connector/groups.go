@@ -196,24 +196,27 @@ func (g *groupBuilder) shouldIncludeGroupMember(member oktav5.GroupMember) bool 
 		return true
 	}
 
+	// If member has no profile, include them (can't filter without profile data)
+	if member.Profile == nil {
+		return true
+	}
+
 	// Extract emails from the GroupMember
 	var userEmails []string
 
-	if member.Profile != nil {
-		// Primary email
-		if member.Profile.Email != nil {
-			userEmails = append(userEmails, *member.Profile.Email)
-		}
+	// Primary email
+	if member.Profile.Email != nil {
+		userEmails = append(userEmails, *member.Profile.Email)
+	}
 
-		// Secondary email
-		if secondEmail := member.Profile.SecondEmail.Get(); secondEmail != nil {
-			userEmails = append(userEmails, *secondEmail)
-		}
+	// Secondary email
+	if secondEmail := member.Profile.SecondEmail.Get(); secondEmail != nil {
+		userEmails = append(userEmails, *secondEmail)
+	}
 
-		// Login field
-		if member.Profile.Login != nil {
-			userEmails = append(userEmails, *member.Profile.Login)
-		}
+	// Login field
+	if member.Profile.Login != nil {
+		userEmails = append(userEmails, *member.Profile.Login)
 	}
 
 	// Check if any email matches the domain filter
