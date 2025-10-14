@@ -97,11 +97,6 @@ func (c *Connector) ResourceSyncers(ctx context.Context) []connectorbuilder.Reso
 	}
 }
 
-// Asset is not implemented for this connector.
-func (c *Connector) Asset(ctx context.Context, asset *v2.AssetRef) (string, io.ReadCloser, error) {
-	return "", nil, fmt.Errorf("okta-ciam-v2: assets not implemented")
-}
-
 // parsePageToken parses a page token into a pagination bag and page string.
 func parsePageToken(token string, resourceID *v2.ResourceId) (*pagination.Bag, string, error) {
 	bag := &pagination.Bag{}
