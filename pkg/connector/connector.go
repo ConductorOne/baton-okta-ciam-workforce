@@ -3,7 +3,6 @@ package connector
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"

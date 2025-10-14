@@ -40,9 +40,6 @@ func (g *groupBuilder) List(
 	parentResourceID *v2.ResourceId,
 	pToken *pagination.Token,
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
-	logger.Debug("okta-ciam-v2: listing groups")
-
 	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: groupResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
@@ -129,9 +126,6 @@ func (g *groupBuilder) Grants(
 	res *v2.Resource,
 	pToken *pagination.Token,
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
-	logger.Debug("okta-ciam-v2: listing group grants", zap.String("group_id", res.Id.Resource))
-
 	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: groupResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
@@ -313,10 +307,10 @@ func (g *groupBuilder) groupGrant(groupResource *v2.Resource, userID string) *v2
 
 // Grant adds a user to a group.
 func (g *groupBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
+	l := ctxzap.Extract(ctx)
 
 	if principal.Id.ResourceType != userResourceType.Id {
-		logger.Warn(
+		l.Warn(
 			"okta-ciam-v2: only users can be granted group membership",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -333,24 +327,18 @@ func (g *groupBuilder) Grant(ctx context.Context, principal *v2.Resource, entitl
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	logger.Info("okta-ciam-v2: user added to group",
-		zap.String("user_id", userID),
-		zap.String("group_id", groupID),
-		zap.String("status", resp.Status),
-	)
-
 	return nil, nil
 }
 
 // Revoke removes a user from a group.
 func (g *groupBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
+	l := ctxzap.Extract(ctx)
 
 	entitlement := grant.Entitlement
 	principal := grant.Principal
 
 	if principal.Id.ResourceType != userResourceType.Id {
-		logger.Warn(
+		l.Warn(
 			"okta-ciam-v2: only users can have group membership revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -366,12 +354,6 @@ func (g *groupBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations
 		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to remove user from group")
 	}
 	defer func() { _ = resp.Body.Close() }()
-
-	logger.Info("okta-ciam-v2: user removed from group",
-		zap.String("user_id", userID),
-		zap.String("group_id", groupID),
-		zap.String("status", resp.Status),
-	)
 
 	return nil, nil
 }

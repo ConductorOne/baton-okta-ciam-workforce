@@ -40,9 +40,6 @@ func (r *customRoleBuilder) List(
 	parentResourceID *v2.ResourceId,
 	pToken *pagination.Token,
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
-	logger.Debug("okta-ciam-v2: listing custom roles")
-
 	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: customRoleResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
@@ -148,8 +145,7 @@ func (r *customRoleBuilder) Grants(
 	res *v2.Resource,
 	pToken *pagination.Token,
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
-	logger.Debug("okta-ciam-v2: listing custom role grants", zap.String("role_id", res.Id.Resource))
+	l := ctxzap.Extract(ctx)
 
 	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: customRoleResourceType.Id})
 	if err != nil {
@@ -188,7 +184,6 @@ func (r *customRoleBuilder) Grants(
 
 	// usersWithRoles is a pointer to RoleAssignedUsers with a Value field
 	if usersWithRoles == nil || usersWithRoles.Value == nil {
-		logger.Debug("okta-ciam-v2: no users with role assignments found")
 		err = bag.Next(nextPage)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
@@ -202,8 +197,6 @@ func (r *customRoleBuilder) Grants(
 		return rv, bagToken, annos, nil
 	}
 
-	logger.Debug("okta-ciam-v2: found users with role assignments", zap.Int("count", len(usersWithRoles.Value)))
-
 	for _, userAssignment := range usersWithRoles.Value {
 		if userAssignment.Id == nil {
 			continue
@@ -215,32 +208,14 @@ func (r *customRoleBuilder) Grants(
 		userRoles, roleResp, err := r.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
 		if err != nil {
 			// Log warning but continue processing other users
-			logger.Warn("okta-ciam-v2: failed to list roles for user", zap.String("user_id", userID), zap.Error(handleOktaError(roleResp, err)))
+			l.Warn("okta-ciam-v2: failed to list roles for user", zap.String("user_id", userID), zap.Error(handleOktaError(roleResp, err)))
 			continue
 		}
 		_ = roleResp.Body.Close()
 
-		logger.Debug("okta-ciam-v2: found roles for user",
-			zap.String("user_id", userID),
-			zap.Int("role_count", len(userRoles)),
-			zap.String("looking_for_role_id", customRoleID))
-
 		// Check if this user has the custom role we're interested in
 		hasRole := false
 		for _, userRole := range userRoles {
-			roleID := "nil"
-			roleType := "nil"
-			if userRole.Id != nil {
-				roleID = *userRole.Id
-			}
-			if userRole.Type != nil {
-				roleType = *userRole.Type
-			}
-			logger.Debug("okta-ciam-v2: checking user role",
-				zap.String("user_id", userID),
-				zap.String("role_id", roleID),
-				zap.String("role_type", roleType))
-
 			// For custom roles, match on Type field (not Id which is the assignment ID)
 			if userRole.Type != nil && *userRole.Type == customRoleID {
 				hasRole = true
@@ -249,9 +224,6 @@ func (r *customRoleBuilder) Grants(
 		}
 
 		if hasRole {
-			logger.Debug("okta-ciam-v2: user has custom role, adding grant",
-				zap.String("user_id", userID),
-				zap.String("custom_role_id", customRoleID))
 			rv = append(rv, r.customRoleGrant(userID, res))
 		}
 	}
@@ -307,10 +279,10 @@ func (r *customRoleBuilder) customRoleGrant(userID string, roleResource *v2.Reso
 
 // Grant assigns a custom role to a user.
 func (r *customRoleBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
+	l := ctxzap.Extract(ctx)
 
 	if principal.Id.ResourceType != userResourceType.Id {
-		logger.Warn(
+		l.Warn(
 			"okta-ciam-v2: only users can be granted custom role membership",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -331,24 +303,18 @@ func (r *customRoleBuilder) Grant(ctx context.Context, principal *v2.Resource, e
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	logger.Info("okta-ciam-v2: custom role assigned to user",
-		zap.String("user_id", userID),
-		zap.String("custom_role_id", customRoleID),
-		zap.String("status", resp.Status),
-	)
-
 	return nil, nil
 }
 
 // Revoke unassigns a custom role from a user.
 func (r *customRoleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
+	l := ctxzap.Extract(ctx)
 
 	entitlement := grant.Entitlement
 	principal := grant.Principal
 
 	if principal.Id.ResourceType != userResourceType.Id {
-		logger.Warn(
+		l.Warn(
 			"okta-ciam-v2: only users can have custom role membership revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -379,7 +345,7 @@ func (r *customRoleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annota
 	}
 
 	if roleAssignmentID == "" {
-		logger.Warn("okta-ciam-v2: custom role not found for user",
+		l.Warn("okta-ciam-v2: custom role not found for user",
 			zap.String("user_id", userID),
 			zap.String("custom_role_id", customRoleID),
 		)
@@ -391,13 +357,6 @@ func (r *customRoleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to unassign custom role from user")
 	}
 	defer func() { _ = resp.Body.Close() }()
-
-	logger.Info("okta-ciam-v2: custom role unassigned from user",
-		zap.String("user_id", userID),
-		zap.String("custom_role_id", customRoleID),
-		zap.String("role_assignment_id", roleAssignmentID),
-		zap.String("status", resp.Status),
-	)
 
 	return nil, nil
 }

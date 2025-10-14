@@ -60,9 +60,6 @@ func (r *roleBuilder) List(
 	parentResourceID *v2.ResourceId,
 	pToken *pagination.Token,
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
-	logger.Debug("okta-ciam-v2: listing roles")
-
 	var rv []*v2.Resource
 
 	// Return all standard role types
@@ -109,8 +106,7 @@ func (r *roleBuilder) Grants(
 	res *v2.Resource,
 	pToken *pagination.Token,
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
-	logger.Debug("okta-ciam-v2: listing role grants", zap.String("role_id", res.Id.Resource))
+	l := ctxzap.Extract(ctx)
 
 	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: roleResourceType.Id})
 	if err != nil {
@@ -149,7 +145,6 @@ func (r *roleBuilder) Grants(
 
 	// usersWithRoles is a pointer to RoleAssignedUsers with a Value field
 	if usersWithRoles == nil || usersWithRoles.Value == nil {
-		logger.Debug("okta-ciam-v2: no users with role assignments found")
 		err = bag.Next(nextPage)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
@@ -174,7 +169,7 @@ func (r *roleBuilder) Grants(
 		userRoles, roleResp, err := r.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
 		if err != nil {
 			// Log warning but continue processing other users
-			logger.Warn("okta-ciam-v2: failed to list roles for user", zap.String("user_id", userID), zap.Error(handleOktaError(roleResp, err)))
+			l.Warn("okta-ciam-v2: failed to list roles for user", zap.String("user_id", userID), zap.Error(handleOktaError(roleResp, err)))
 			continue
 		}
 		_ = roleResp.Body.Close()
@@ -247,10 +242,10 @@ func (r *roleBuilder) findRoleByType(roleType string) *StandardRole {
 
 // Grant assigns a role to a user.
 func (r *roleBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
+	l := ctxzap.Extract(ctx)
 
 	if principal.Id.ResourceType != userResourceType.Id {
-		logger.Warn(
+		l.Warn(
 			"okta-ciam-v2: only users can be granted role membership",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -271,24 +266,18 @@ func (r *roleBuilder) Grant(ctx context.Context, principal *v2.Resource, entitle
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	logger.Info("okta-ciam-v2: role assigned to user",
-		zap.String("user_id", userID),
-		zap.String("role_type", roleType),
-		zap.String("status", resp.Status),
-	)
-
 	return nil, nil
 }
 
 // Revoke unassigns a role from a user.
 func (r *roleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
+	l := ctxzap.Extract(ctx)
 
 	entitlement := grant.Entitlement
 	principal := grant.Principal
 
 	if principal.Id.ResourceType != userResourceType.Id {
-		logger.Warn(
+		l.Warn(
 			"okta-ciam-v2: only users can have role membership revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -318,7 +307,7 @@ func (r *roleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 	}
 
 	if roleID == "" {
-		logger.Warn("okta-ciam-v2: role not found for user",
+		l.Warn("okta-ciam-v2: role not found for user",
 			zap.String("user_id", userID),
 			zap.String("role_type", roleType),
 		)
@@ -330,13 +319,6 @@ func (r *roleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to unassign role from user")
 	}
 	defer func() { _ = resp.Body.Close() }()
-
-	logger.Info("okta-ciam-v2: role unassigned from user",
-		zap.String("user_id", userID),
-		zap.String("role_type", roleType),
-		zap.String("role_id", roleID),
-		zap.String("status", resp.Status),
-	)
 
 	return nil, nil
 }
