@@ -8,7 +8,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
-	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	oktav5 "github.com/okta/okta-sdk-golang/v5/okta"
@@ -100,106 +99,14 @@ func (r *roleBuilder) Entitlements(
 	return rv, "", nil, nil
 }
 
-// Grants returns all users who have been assigned this role using the IAM API.
+// Grants returns an empty slice for roles. Role grants are now emitted from the user resource
+// by calling ListAssignedRolesForUser for each user.
 func (r *roleBuilder) Grants(
 	ctx context.Context,
 	res *v2.Resource,
 	pToken *pagination.Token,
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
-	l := ctxzap.Extract(ctx)
-
-	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: roleResourceType.Id})
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
-	}
-
-	var rv []*v2.Grant
-
-	// Default page size if not specified
-	pageSize := pToken.Size
-	if pageSize == 0 {
-		pageSize = 50
-	}
-
-	// List all users with role assignments using the IAM API
-	req := r.connector.client.RoleAssignmentAPI.ListUsersWithRoleAssignments(ctx).
-		Limit(toInt32(pageSize))
-
-	if pageToken != "" {
-		req = req.After(pageToken)
-	}
-
-	usersWithRoles, resp, err := req.Execute()
-	if err != nil {
-		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list users with role assignments")
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Extract rate limit annotations from the response
-	annos := extractRateLimitAnnotations(resp)
-
-	// Get next page token using SDK's built-in pagination helper
-	nextPage := resp.NextPage()
-
-	roleType := res.Id.GetResource()
-
-	// usersWithRoles is a pointer to RoleAssignedUsers with a Value field
-	if usersWithRoles == nil || usersWithRoles.Value == nil {
-		err = bag.Next(nextPage)
-		if err != nil {
-			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
-		}
-
-		bagToken, err := bag.Marshal()
-		if err != nil {
-			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
-		}
-
-		return rv, bagToken, annos, nil
-	}
-
-	for _, userAssignment := range usersWithRoles.Value {
-		if userAssignment.Id == nil {
-			continue
-		}
-
-		userID := *userAssignment.Id
-
-		// Check if this user has the specific role we're looking for
-		userRoles, roleResp, err := r.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
-		if err != nil {
-			// Log warning but continue processing other users
-			l.Warn("okta-ciam-v2: failed to list roles for user", zap.String("user_id", userID), zap.Error(handleOktaError(roleResp, err)))
-			continue
-		}
-		_ = roleResp.Body.Close()
-
-		// Check if this user has the role we're interested in
-		// userRoles is []Role, not a struct with a Roles field
-		hasRole := false
-		for _, userRole := range userRoles {
-			if userRole.Type != nil && *userRole.Type == roleType {
-				hasRole = true
-				break
-			}
-		}
-
-		if hasRole {
-			rv = append(rv, r.roleGrant(userID, res))
-		}
-	}
-
-	err = bag.Next(nextPage)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
-	}
-
-	bagToken, err := bag.Marshal()
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
-	}
-
-	return rv, bagToken, annos, nil
+	return nil, "", nil, nil
 }
 
 // roleResource converts a StandardRole to a Baton resource.
@@ -216,18 +123,6 @@ func (r *roleBuilder) roleResource(ctx context.Context, role *StandardRole) (*v2
 		role.Type, // Use type as the resource ID for standard roles
 		[]resource.RoleTraitOption{resource.WithRoleProfile(profile)},
 	)
-}
-
-// roleGrant creates a grant for a user having a role.
-func (r *roleBuilder) roleGrant(userID string, roleResource *v2.Resource) *v2.Grant {
-	userRes := &v2.Resource{
-		Id: &v2.ResourceId{
-			ResourceType: userResourceType.Id,
-			Resource:     userID,
-		},
-	}
-
-	return grant.NewGrant(roleResource, roleMembership, userRes)
 }
 
 // findRoleByType finds a standard role by its type.

@@ -8,6 +8,7 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
+	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	mapset "github.com/deckarep/golang-set/v2"
 	oktav5 "github.com/okta/okta-sdk-golang/v5/okta"
@@ -116,13 +117,74 @@ func (u *userBuilder) Entitlements(
 	return nil, "", nil, nil
 }
 
-// Grants always returns an empty slice for users (users don't grant anything).
+// Grants returns all role grants for a specific user.
 func (u *userBuilder) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
 	pToken *pagination.Token,
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	userID := resource.Id.GetResource()
+
+	// List all roles assigned to this user
+	userRoles, resp, err := u.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
+	if err != nil {
+		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list assigned roles for user")
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Extract rate limit annotations from the response
+	annos := extractRateLimitAnnotations(resp)
+
+	var rv []*v2.Grant
+
+	// Create a set of standard role types for quick lookup
+	standardRoleTypeSet := make(map[string]bool)
+	for _, stdRole := range standardRoleTypes {
+		standardRoleTypeSet[stdRole.Type] = true
+	}
+
+	// Create a grant for each role assigned to the user
+	for _, userRole := range userRoles {
+		if userRole.Type == nil {
+			continue
+		}
+
+		roleType := *userRole.Type
+
+		// Determine if this is a standard role or custom role
+		var resourceType *v2.ResourceType
+		var membership string
+		if standardRoleTypeSet[roleType] {
+			// Standard role
+			resourceType = roleResourceType
+			membership = roleMembership
+		} else {
+			// Custom role
+			resourceType = customRoleResourceType
+			membership = customRoleMembership
+		}
+
+		// Create role resource reference
+		roleResource := &v2.Resource{
+			Id: &v2.ResourceId{
+				ResourceType: resourceType.Id,
+				Resource:     roleType,
+			},
+		}
+
+		// Create user resource reference
+		userResource := &v2.Resource{
+			Id: &v2.ResourceId{
+				ResourceType: userResourceType.Id,
+				Resource:     userID,
+			},
+		}
+
+		// Create the grant (role membership for this user)
+		rv = append(rv, grant.NewGrant(roleResource, membership, userResource))
+	}
+
+	return rv, "", annos, nil
 }
 
 // shouldIncludeUser determines if a user should be included based on email domain filtering.
