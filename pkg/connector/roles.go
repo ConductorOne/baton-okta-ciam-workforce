@@ -17,7 +17,7 @@ import (
 
 const roleMembership = "assigned"
 
-// StandardRole represents a standard Okta role type
+// StandardRole represents a standard Okta role type.
 type StandardRole struct {
 	Type  string
 	Label string
@@ -127,7 +127,7 @@ func (r *roleBuilder) Grants(
 
 	// List all users with role assignments using the IAM API
 	req := r.connector.client.RoleAssignmentAPI.ListUsersWithRoleAssignments(ctx).
-		Limit(int32(pageSize))
+		Limit(toInt32(pageSize))
 
 	if pageToken != "" {
 		req = req.After(pageToken)

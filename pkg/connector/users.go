@@ -62,7 +62,7 @@ func (u *userBuilder) List(
 
 	// List users with the search query "status pr" to get all users including deactivated ones
 	req := u.connector.client.UserAPI.ListUsers(ctx).
-		Limit(int32(pageSize)).
+		Limit(toInt32(pageSize)).
 		Search("status pr")
 
 	if pageToken != "" {

@@ -58,7 +58,7 @@ func (g *groupBuilder) List(
 
 	// List groups
 	req := g.connector.client.GroupAPI.ListGroups(ctx).
-		Limit(int32(pageSize))
+		Limit(toInt32(pageSize))
 
 	if pageToken != "" {
 		req = req.After(pageToken)
@@ -148,7 +148,7 @@ func (g *groupBuilder) Grants(
 
 	// List group members
 	req := g.connector.client.GroupAPI.ListGroupUsers(ctx, groupID).
-		Limit(int32(pageSize))
+		Limit(toInt32(pageSize))
 
 	if pageToken != "" {
 		req = req.After(pageToken)

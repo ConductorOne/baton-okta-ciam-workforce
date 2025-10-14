@@ -228,9 +228,6 @@ github.com/conductorone/dpop/integrations/dpop_grpc
 # github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.3
 ## explicit; go 1.23.4
 github.com/conductorone/dpop/integrations/dpop_oauth2
-# github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-## explicit
-github.com/davecgh/go-spew/spew
 # github.com/deckarep/golang-set/v2 v2.7.0
 ## explicit; go 1.18
 github.com/deckarep/golang-set/v2
@@ -412,7 +409,7 @@ github.com/mitchellh/mapstructure
 # github.com/ncruces/go-strftime v0.1.9
 ## explicit; go 1.17
 github.com/ncruces/go-strftime
-# github.com/okta/okta-sdk-golang/v5 v5.0.6 => ../okta-sdk-golang
+# github.com/okta/okta-sdk-golang/v5 v5.0.6
 ## explicit; go 1.20
 github.com/okta/okta-sdk-golang/v5/okta
 # github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627
@@ -428,9 +425,6 @@ github.com/pelletier/go-toml/v2/unstable
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
-# github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
-## explicit
-github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
 ## explicit; go 1.14
 github.com/power-devops/perfstat
@@ -504,10 +498,6 @@ github.com/spf13/viper/internal/encoding/json
 github.com/spf13/viper/internal/encoding/toml
 github.com/spf13/viper/internal/encoding/yaml
 github.com/spf13/viper/internal/features
-# github.com/stretchr/testify v1.10.0
-## explicit; go 1.17
-github.com/stretchr/testify/assert
-github.com/stretchr/testify/assert/yaml
 # github.com/subosito/gotenv v1.6.0
 ## explicit; go 1.18
 github.com/subosito/gotenv
@@ -847,4 +837,3 @@ modernc.org/memory
 # modernc.org/sqlite v1.34.5
 ## explicit; go 1.21
 modernc.org/sqlite/lib
-# github.com/okta/okta-sdk-golang/v5 => ../okta-sdk-golang

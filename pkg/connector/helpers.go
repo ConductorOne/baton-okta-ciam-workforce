@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 
@@ -19,19 +20,19 @@ import (
 // Okta error codes
 // https://developer.okta.com/docs/reference/error-codes/
 const (
-	// E0000006 - Access denied
+	// E0000006 - Access denied.
 	ErrorCodeAccessDenied = "E0000006"
-	// E0000007 - Not found
+	// E0000007 - Not found.
 	ErrorCodeNotFound = "E0000007"
-	// E0000008 - Resource not found
+	// E0000008 - Resource not found.
 	ErrorCodeResourceNotFound = "E0000008"
-	// E0000011 - Invalid token
+	// E0000011 - Invalid token.
 	ErrorCodeInvalidToken = "E0000011"
-	// E0000047 - API call exceeded rate limit
+	// E0000047 - API call exceeded rate limit.
 	ErrorCodeRateLimitExceeded = "E0000047"
 )
 
-// oktaNotFoundErrors contains error codes that indicate a resource was not found
+// oktaNotFoundErrors contains error codes that indicate a resource was not found.
 var oktaNotFoundErrors = map[string]struct{}{
 	ErrorCodeNotFound:         {},
 	ErrorCodeResourceNotFound: {},
@@ -97,7 +98,7 @@ func handleOktaError(resp *oktav5.APIResponse, err error) error {
 	return err
 }
 
-// extractOktaError attempts to extract an Okta Error from the response body
+// extractOktaError attempts to extract an Okta Error from the response body.
 func extractOktaError(resp *oktav5.APIResponse, originalErr error) *oktav5.Error {
 	// First try to cast the error directly
 	var genericErr *oktav5.GenericOpenAPIError
@@ -123,7 +124,7 @@ func extractOktaError(resp *oktav5.APIResponse, originalErr error) *oktav5.Error
 	return nil
 }
 
-// convertOktaErrorToGRPC converts an Okta error to a gRPC status error
+// convertOktaErrorToGRPC converts an Okta error to a gRPC status error.
 func convertOktaErrorToGRPC(oktaErr *oktav5.Error) error {
 	if oktaErr == nil {
 		return nil
@@ -166,7 +167,7 @@ func convertOktaErrorToGRPC(oktaErr *oktav5.Error) error {
 	}
 }
 
-// wrapError wraps an error with a context message and proper gRPC status code if applicable
+// wrapError wraps an error with a context message and proper gRPC status code if applicable.
 func wrapError(err error, message string) error {
 	if err == nil {
 		return nil
@@ -198,4 +199,13 @@ func extractRateLimitAnnotations(resp *oktav5.APIResponse) annotations.Annotatio
 	}
 
 	return annos
+}
+
+// toInt32 safely converts an int to int32, capping at math.MaxInt32 to prevent overflow.
+// This is used for converting page sizes from the Baton SDK (int) to the Okta SDK (int32).
+func toInt32(n int) int32 {
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(n) // #nosec G115 -- value is bounds-checked above
 }
