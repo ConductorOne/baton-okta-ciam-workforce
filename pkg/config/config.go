@@ -52,6 +52,6 @@ var (
 var ConfigurationSchema = field.NewConfiguration(
 	ConfigurationFields,
 	field.WithConnectorDisplayName("Okta CIAM Workforce"),
-	field.WithHelpUrl("/docs/baton/okta-ciam-worforce"),
+	field.WithHelpUrl("/docs/baton/okta-ciam-workforce"),
 	field.WithIconUrl("/static/app-icons/okta.svg"),
 )
