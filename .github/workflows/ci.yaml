@@ -74,5 +74,5 @@ jobs:
         with:
           connector: ./baton-okta-ciam-workforce
           baton-entitlement: 'group:00gw08799oN84g2FA697:member'
-          baton-principal: 'user:00uw05rqxhaVFs0Jw697'
+          baton-principal: '00uw05rqxhaVFs0Jw697'
           baton-principal-type: 'user'
