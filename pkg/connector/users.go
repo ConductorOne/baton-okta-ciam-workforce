@@ -117,7 +117,7 @@ func (u *userBuilder) Entitlements(
 	return nil, "", nil, nil
 }
 
-// Grants returns all role grants for a specific user.
+// Grants returns all role and group grants for a specific user.
 func (u *userBuilder) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
@@ -125,50 +125,113 @@ func (u *userBuilder) Grants(
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
 	userID := resource.Id.GetResource()
 
-	// List all roles assigned to this user
-	userRoles, resp, err := u.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
+	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: userResourceType.Id})
 	if err != nil {
-		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list assigned roles for user")
+		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
+	}
+
+	var rv []*v2.Grant
+	var annos annotations.Annotations
+
+	// On the first page, emit all role grants (no pagination needed for roles)
+	if pageToken == "" {
+		// List all roles assigned to this user
+		userRoles, resp, err := u.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
+		if err != nil {
+			return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list assigned roles for user")
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Extract rate limit annotations from the response
+		roleAnnos := extractRateLimitAnnotations(resp)
+		annos = append(annos, roleAnnos...)
+
+		// Create a set of standard role types for quick lookup
+		standardRoleTypeSet := make(map[string]bool)
+		for _, stdRole := range standardRoleTypes {
+			standardRoleTypeSet[stdRole.Type] = true
+		}
+
+		// Create a grant for each role assigned to the user
+		for _, userRole := range userRoles {
+			if userRole.Type == nil {
+				continue
+			}
+
+			roleType := *userRole.Type
+
+			// Determine if this is a standard role or custom role
+			var resourceType *v2.ResourceType
+			var membership string
+			if standardRoleTypeSet[roleType] {
+				// Standard role
+				resourceType = roleResourceType
+				membership = roleMembership
+			} else {
+				// Custom role
+				resourceType = customRoleResourceType
+				membership = customRoleMembership
+			}
+
+			// Create role resource reference
+			roleResource := &v2.Resource{
+				Id: &v2.ResourceId{
+					ResourceType: resourceType.Id,
+					Resource:     roleType,
+				},
+			}
+
+			// Create user resource reference
+			userResource := &v2.Resource{
+				Id: &v2.ResourceId{
+					ResourceType: userResourceType.Id,
+					Resource:     userID,
+				},
+			}
+
+			// Create the grant (role membership for this user)
+			rv = append(rv, grant.NewGrant(roleResource, membership, userResource))
+		}
+	}
+
+	// Fetch groups for this user with pagination
+	pageSize := pToken.Size
+	if pageSize == 0 {
+		pageSize = 50
+	}
+
+	req := u.connector.client.UserAPI.ListUserGroups(ctx, userID).
+		Limit(toInt32(pageSize))
+
+	if pageToken != "" {
+		req = req.After(pageToken)
+	}
+
+	userGroups, resp, err := req.Execute()
+	if err != nil {
+		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list user groups")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Extract rate limit annotations from the response
-	annos := extractRateLimitAnnotations(resp)
+	groupAnnos := extractRateLimitAnnotations(resp)
+	annos = append(annos, groupAnnos...)
 
-	var rv []*v2.Grant
+	// Get next page token using SDK's built-in pagination helper
+	nextPage := resp.NextPage()
 
-	// Create a set of standard role types for quick lookup
-	standardRoleTypeSet := make(map[string]bool)
-	for _, stdRole := range standardRoleTypes {
-		standardRoleTypeSet[stdRole.Type] = true
-	}
-
-	// Create a grant for each role assigned to the user
-	for _, userRole := range userRoles {
-		if userRole.Type == nil {
-			continue
+	// Create a grant for each group the user is a member of
+	for _, group := range userGroups {
+		groupID := ""
+		if group.Id != nil {
+			groupID = *group.Id
 		}
 
-		roleType := *userRole.Type
-
-		// Determine if this is a standard role or custom role
-		var resourceType *v2.ResourceType
-		var membership string
-		if standardRoleTypeSet[roleType] {
-			// Standard role
-			resourceType = roleResourceType
-			membership = roleMembership
-		} else {
-			// Custom role
-			resourceType = customRoleResourceType
-			membership = customRoleMembership
-		}
-
-		// Create role resource reference
-		roleResource := &v2.Resource{
+		// Create group resource reference
+		groupResource := &v2.Resource{
 			Id: &v2.ResourceId{
-				ResourceType: resourceType.Id,
-				Resource:     roleType,
+				ResourceType: groupResourceType.Id,
+				Resource:     groupID,
 			},
 		}
 
@@ -180,11 +243,21 @@ func (u *userBuilder) Grants(
 			},
 		}
 
-		// Create the grant (role membership for this user)
-		rv = append(rv, grant.NewGrant(roleResource, membership, userResource))
+		// Create the grant (group membership for this user)
+		rv = append(rv, grant.NewGrant(groupResource, groupMembership, userResource))
 	}
 
-	return rv, "", annos, nil
+	err = bag.Next(nextPage)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
+	}
+
+	bagToken, err := bag.Marshal()
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
+	}
+
+	return rv, bagToken, annos, nil
 }
 
 // shouldIncludeUser determines if a user should be included based on email domain filtering.

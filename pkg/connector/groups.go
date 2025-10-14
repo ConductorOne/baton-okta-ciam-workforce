@@ -9,7 +9,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
-	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	oktav5 "github.com/okta/okta-sdk-golang/v5/okta"
 	"go.uber.org/zap"
@@ -120,115 +119,14 @@ func (g *groupBuilder) Entitlements(
 	return rv, "", nil, nil
 }
 
-// Grants returns all users who are members of this group.
+// Grants returns an empty slice for groups. Group grants are now emitted from the user resource
+// by calling ListUserGroups for each user.
 func (g *groupBuilder) Grants(
 	ctx context.Context,
 	res *v2.Resource,
 	pToken *pagination.Token,
 ) ([]*v2.Grant, string, annotations.Annotations, error) {
-	bag, pageToken, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: groupResourceType.Id})
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
-	}
-
-	var rv []*v2.Grant
-	groupID := res.Id.GetResource()
-
-	// Default page size if not specified
-	pageSize := pToken.Size
-	if pageSize == 0 {
-		pageSize = 50
-	}
-
-	// List group members
-	req := g.connector.client.GroupAPI.ListGroupUsers(ctx, groupID).
-		Limit(toInt32(pageSize))
-
-	if pageToken != "" {
-		req = req.After(pageToken)
-	}
-
-	users, resp, err := req.Execute()
-	if err != nil {
-		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list group users")
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Extract rate limit annotations from the response
-	annos := extractRateLimitAnnotations(resp)
-
-	// Get next page token using SDK's built-in pagination helper
-	nextPage := resp.NextPage()
-
-	// Filter users by email domain
-	for _, user := range users {
-		// Check if user should be included based on email filtering
-		// GroupMember has all the same fields as User, so we can check directly
-		if !g.shouldIncludeGroupMember(user) {
-			continue
-		}
-
-		userID := ""
-		if user.Id != nil {
-			userID = *user.Id
-		}
-
-		rv = append(rv, g.groupGrant(res, userID))
-	}
-
-	err = bag.Next(nextPage)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
-	}
-
-	bagToken, err := bag.Marshal()
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
-	}
-
-	return rv, bagToken, annos, nil
-}
-
-// shouldIncludeGroupMember checks if a group member should be included based on email filtering.
-func (g *groupBuilder) shouldIncludeGroupMember(member oktav5.GroupMember) bool {
-	// If no email filtering is configured, include all users
-	if len(g.connector.emailDomains) == 0 {
-		return true
-	}
-
-	// If member has no profile, include them (can't filter without profile data)
-	if member.Profile == nil {
-		return true
-	}
-
-	// Extract emails from the GroupMember
-	var userEmails []string
-
-	// Primary email
-	if member.Profile.Email != nil {
-		userEmails = append(userEmails, *member.Profile.Email)
-	}
-
-	// Secondary email
-	if secondEmail := member.Profile.SecondEmail.Get(); secondEmail != nil {
-		userEmails = append(userEmails, *secondEmail)
-	}
-
-	// Login field
-	if member.Profile.Login != nil {
-		userEmails = append(userEmails, *member.Profile.Login)
-	}
-
-	// Check if any email matches the domain filter
-	for _, filter := range g.connector.emailDomains {
-		for _, email := range userEmails {
-			if strings.HasSuffix(strings.ToLower(email), "@"+filter) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return nil, "", nil, nil
 }
 
 // shouldIncludeGroup determines if a group should be included based on the group name filter.
@@ -294,18 +192,6 @@ func (g *groupBuilder) groupResource(ctx context.Context, group *oktav5.Group) (
 		DisplayName: groupName,
 		Annotations: annos,
 	}, nil
-}
-
-// groupGrant creates a grant for a user being a member of a group.
-func (g *groupBuilder) groupGrant(groupResource *v2.Resource, userID string) *v2.Grant {
-	userRes := &v2.Resource{
-		Id: &v2.ResourceId{
-			ResourceType: userResourceType.Id,
-			Resource:     userID,
-		},
-	}
-
-	return grant.NewGrant(groupResource, groupMembership, userRes)
 }
 
 // Grant adds a user to a group.
