@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	config.Generate("okta-ciam-v2", cfg.ConfigurationSchema)
+	config.Generate("okta-ciam-workforce", cfg.ConfigurationSchema)
 }

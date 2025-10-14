@@ -41,7 +41,7 @@ func main() {
 	}
 }
 
-func getConnector(ctx context.Context, oktaCfg *cfg.OktaCiamV2) (types.ConnectorServer, error) {
+func getConnector(ctx context.Context, oktaCfg *cfg.OktaCiamWorkforce) (types.ConnectorServer, error) {
 	if err := field.Validate(cfg.ConfigurationSchema, oktaCfg); err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func getConnector(ctx context.Context, oktaCfg *cfg.OktaCiamV2) (types.Connector
 	groupNameFilter := strings.TrimSpace(strings.ToLower(oktaCfg.GroupNameFilter))
 
 	// Create connector
-	c, err := connector.New(ctx, oktaCfg.Domain, oktaCfg.ApiToken, normalizedEmailDomains, groupNameFilter, oktaCfg.SkipSecondaryEmails)
+	c, err := connector.New(ctx, oktaCfg.Domain, oktaCfg.ApiToken, normalizedEmailDomains, groupNameFilter)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

@@ -233,13 +233,9 @@ func (u *userBuilder) userResource(ctx context.Context, user *oktav5.User) (*v2.
 		if user.Profile.Email != nil && *user.Profile.Email != "" {
 			options = append(options, resource.WithEmail(*user.Profile.Email, true))
 		}
-		if secondEmail := user.Profile.SecondEmail.Get(); secondEmail != nil && *secondEmail != "" && !u.connector.skipSecondaryEmails {
+		if secondEmail := user.Profile.SecondEmail.Get(); secondEmail != nil && *secondEmail != "" {
 			options = append(options, resource.WithEmail(*secondEmail, false))
 		}
-	}
-
-	if u.connector.skipSecondaryEmails {
-		profile["secondEmail"] = nil
 	}
 
 	// Extract employee IDs from standard field and additional properties

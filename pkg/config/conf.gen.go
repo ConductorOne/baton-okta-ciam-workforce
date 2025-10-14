@@ -3,15 +3,14 @@ package config
 
 import "reflect" 
 
-type OktaCiamV2 struct {
+type OktaCiamWorkforce struct {
 	Domain string `mapstructure:"domain"`
 	ApiToken string `mapstructure:"api-token"`
 	EmailDomains []string `mapstructure:"email-domains"`
 	GroupNameFilter string `mapstructure:"group-name-filter"`
-	SkipSecondaryEmails bool `mapstructure:"skip-secondary-emails"`
 }
 
-func (c* OktaCiamV2) findFieldByTag(tagValue string) (any, bool) {
+func (c* OktaCiamWorkforce) findFieldByTag(tagValue string) (any, bool) {
 	v := reflect.ValueOf(c).Elem() // Dereference pointer to struct
 	t := v.Type()
 
@@ -26,7 +25,7 @@ func (c* OktaCiamV2) findFieldByTag(tagValue string) (any, bool) {
 	return nil, false
 }
 
-func (c *OktaCiamV2) GetStringSlice(fieldName string) []string {
+func (c *OktaCiamWorkforce) GetStringSlice(fieldName string) []string {
 	v, ok := c.findFieldByTag(fieldName)
 	if !ok {
 		return []string{}
@@ -38,7 +37,7 @@ func (c *OktaCiamV2) GetStringSlice(fieldName string) []string {
 	return t
 }
 
-func (c *OktaCiamV2) GetString(fieldName string) string {
+func (c *OktaCiamWorkforce) GetString(fieldName string) string {
 	v, ok := c.findFieldByTag(fieldName)
 	if !ok {
 		return ""
@@ -50,7 +49,7 @@ func (c *OktaCiamV2) GetString(fieldName string) string {
 	return t
 }
 
-func (c *OktaCiamV2) GetInt(fieldName string) int {
+func (c *OktaCiamWorkforce) GetInt(fieldName string) int {
 	v, ok := c.findFieldByTag(fieldName)
 	if !ok {
 		return 0
@@ -62,7 +61,7 @@ func (c *OktaCiamV2) GetInt(fieldName string) int {
 	return t
 }
 
-func (c *OktaCiamV2) GetBool(fieldName string) bool {
+func (c *OktaCiamWorkforce) GetBool(fieldName string) bool {
 	v, ok := c.findFieldByTag(fieldName)
 	if !ok {
 		return false
@@ -74,7 +73,7 @@ func (c *OktaCiamV2) GetBool(fieldName string) bool {
 	return t
 }
 
-func (c *OktaCiamV2) GetStringMap(fieldName string) map[string]any {
+func (c *OktaCiamWorkforce) GetStringMap(fieldName string) map[string]any {
 	v, ok := c.findFieldByTag(fieldName)
 	if !ok {
 		return map[string]any{}

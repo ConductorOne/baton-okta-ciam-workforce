@@ -211,11 +211,9 @@ func (g *groupBuilder) shouldIncludeGroupMember(member oktav5.GroupMember) bool 
 			userEmails = append(userEmails, *member.Profile.Email)
 		}
 
-		// Secondary email (if not skipped)
-		if !g.connector.skipSecondaryEmails {
-			if secondEmail := member.Profile.SecondEmail.Get(); secondEmail != nil {
-				userEmails = append(userEmails, *secondEmail)
-			}
+		// Secondary email
+		if secondEmail := member.Profile.SecondEmail.Get(); secondEmail != nil {
+			userEmails = append(userEmails, *secondEmail)
 		}
 
 		// Login field

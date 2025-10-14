@@ -15,17 +15,16 @@ import (
 )
 
 type Connector struct {
-	client              *oktav5.APIClient
-	config              *oktav5.Configuration
-	domain              string
-	apiToken            string
-	emailDomains        []string
-	groupNameFilter     string
-	skipSecondaryEmails bool
+	client          *oktav5.APIClient
+	config          *oktav5.Configuration
+	domain          string
+	apiToken        string
+	emailDomains    []string
+	groupNameFilter string
 }
 
 // New creates a new Okta CIAM v2 connector instance.
-func New(ctx context.Context, domain, apiToken string, emailDomains []string, groupNameFilter string, skipSecondaryEmails bool) (*Connector, error) {
+func New(ctx context.Context, domain, apiToken string, emailDomains []string, groupNameFilter string) (*Connector, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, nil))
 	if err != nil {
 		return nil, fmt.Errorf("okta-ciam-v2: failed to create HTTP client: %w", err)
@@ -55,13 +54,12 @@ func New(ctx context.Context, domain, apiToken string, emailDomains []string, gr
 	client := oktav5.NewAPIClient(oktaConfig)
 
 	return &Connector{
-		client:              client,
-		config:              oktaConfig,
-		domain:              domain,
-		apiToken:            apiToken,
-		emailDomains:        emailDomains,
-		groupNameFilter:     groupNameFilter,
-		skipSecondaryEmails: skipSecondaryEmails,
+		client:          client,
+		config:          oktaConfig,
+		domain:          domain,
+		apiToken:        apiToken,
+		emailDomains:    emailDomains,
+		groupNameFilter: groupNameFilter,
 	}, nil
 }
 

@@ -30,12 +30,6 @@ var (
 		field.WithDescription("String to filter group names (only groups containing this string will be synced)"),
 		field.WithRequired(false),
 	)
-	SkipSecondaryEmailsField = field.BoolField(
-		"skip-secondary-emails",
-		field.WithDisplayName("Skip Secondary Emails"),
-		field.WithDescription("Skip syncing secondary email addresses for users"),
-		field.WithDefaultValue(false),
-	)
 
 	// ConfigurationFields defines the external configuration required for the
 	// connector to run.
@@ -44,7 +38,6 @@ var (
 		ApiTokenField,
 		EmailDomainsField,
 		GroupNameFilterField,
-		SkipSecondaryEmailsField,
 	}
 )
 
