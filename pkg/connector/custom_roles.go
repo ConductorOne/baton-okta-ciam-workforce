@@ -82,7 +82,7 @@ func (r *customRoleBuilder) List(
 			// Skip standard roles
 			if role.Id != nil {
 				roleID := *role.Id
-				// Custom roles have IDs that start with "cr" or are not in the standard list
+				// Custom roles are any roles not in the standard role list
 				if !standardRoleTypeSet[roleID] {
 					roleResource, err := r.customRoleResource(ctx, &role)
 					if err != nil {
