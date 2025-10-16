@@ -77,19 +77,17 @@ func (r *customRoleBuilder) List(
 		standardRoleTypeSet[stdRole.Type] = true
 	}
 
-	if iamRoles.Roles != nil {
-		for _, role := range iamRoles.Roles {
-			// Skip standard roles
-			if role.Id != nil {
-				roleID := *role.Id
-				// Custom roles are any roles not in the standard role list
-				if !standardRoleTypeSet[roleID] {
-					roleResource, err := r.customRoleResource(ctx, &role)
-					if err != nil {
-						return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to create custom role resource: %w", err)
-					}
-					rv = append(rv, roleResource)
+	for _, role := range iamRoles.Roles {
+		// Skip standard roles
+		if role.Id != nil {
+			roleID := *role.Id
+			// Custom roles are any roles not in the standard role list
+			if !standardRoleTypeSet[roleID] {
+				roleResource, err := r.customRoleResource(ctx, &role)
+				if err != nil {
+					return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to create custom role resource: %w", err)
 				}
+				rv = append(rv, roleResource)
 			}
 		}
 	}
