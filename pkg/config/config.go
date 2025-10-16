@@ -39,6 +39,13 @@ var (
 		EmailDomainsField,
 		GroupNameFilterField,
 	}
+
+	fieldRelationships = []field.SchemaFieldRelationship{
+		field.FieldsRequiredTogether(
+			DomainField,
+			ApiTokenField,
+		),
+	}
 )
 
 //go:generate go run ./gen

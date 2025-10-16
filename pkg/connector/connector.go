@@ -29,10 +29,6 @@ func New(ctx context.Context, domain, apiToken string, emailDomains []string, gr
 		return nil, fmt.Errorf("okta-ciam-v2: failed to create HTTP client: %w", err)
 	}
 
-	if apiToken == "" || domain == "" {
-		return nil, fmt.Errorf("okta-ciam-v2: API token and domain are required")
-	}
-
 	if len(emailDomains) == 0 {
 		return nil, fmt.Errorf("okta-ciam-v2: at least one email domain is required")
 	}
