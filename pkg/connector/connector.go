@@ -23,7 +23,7 @@ type Connector struct {
 }
 
 // New creates a new Okta CIAM v2 connector instance.
-func New(ctx context.Context, domain, apiToken string, emailDomains []string, groupNameFilter string) (*Connector, error) {
+func New(ctx context.Context, domain string, apiToken string, emailDomains []string, groupNameFilter string) (*Connector, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(false, nil))
 	if err != nil {
 		return nil, fmt.Errorf("okta-ciam-v2: failed to create HTTP client: %w", err)
