@@ -122,8 +122,6 @@ func (g *groupBuilder) Grants(
 	return nil, "", nil, nil
 }
 
-// shouldIncludeGroup determines if a group should be included based on the group name filter.
-
 // groupResource converts an Okta group to a Baton resource.
 func (g *groupBuilder) groupResource(ctx context.Context, group *oktav5.Group) (*v2.Resource, error) {
 	groupName := ""
