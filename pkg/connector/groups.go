@@ -3,7 +3,6 @@ package connector
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -50,9 +49,11 @@ func (g *groupBuilder) List(
 	pageSize := getPageSize(pToken, 50)
 
 	// List groups
-	req := g.connector.client.GroupAPI.ListGroups(ctx).
-		Limit(toInt32(pageSize))
-
+	req := g.connector.client.GroupAPI.ListGroups(ctx)
+	if g.connector.groupNameFilter != "" {
+		req = req.Q(g.connector.groupNameFilter)
+	}
+	req = req.Limit(toInt32(pageSize))
 	if pageToken != "" {
 		req = req.After(pageToken)
 	}
@@ -70,11 +71,6 @@ func (g *groupBuilder) List(
 	nextPage := resp.NextPage()
 
 	for _, group := range groups {
-		// Apply group name filter
-		if !g.shouldIncludeGroup(group) {
-			continue
-		}
-
 		groupResource, err := g.groupResource(ctx, &group)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to create group resource: %w", err)
@@ -127,23 +123,6 @@ func (g *groupBuilder) Grants(
 }
 
 // shouldIncludeGroup determines if a group should be included based on the group name filter.
-func (g *groupBuilder) shouldIncludeGroup(group oktav5.Group) bool {
-	// If no filter is configured, include all groups
-	if g.connector.groupNameFilter == "" {
-		return true
-	}
-
-	// Get the group name using the proper v5 SDK method
-	groupName := ""
-	if group.Profile != nil {
-		if group.Profile.Name != nil {
-			groupName = strings.ToLower(*group.Profile.Name)
-		}
-	}
-
-	// Check if the group name contains the filter string (case-insensitive)
-	return strings.Contains(groupName, g.connector.groupNameFilter)
-}
 
 // groupResource converts an Okta group to a Baton resource.
 func (g *groupBuilder) groupResource(ctx context.Context, group *oktav5.Group) (*v2.Resource, error) {
