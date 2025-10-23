@@ -10,9 +10,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	oktav5 "github.com/okta/okta-sdk-golang/v5/okta"
-	"go.uber.org/zap"
 )
 
 const customRoleMembership = "assigned"
@@ -168,88 +166,4 @@ func (r *customRoleBuilder) customRoleResource(ctx context.Context, role *oktav5
 		roleID,
 		[]resource.RoleTraitOption{resource.WithRoleProfile(profile)},
 	)
-}
-
-// Grant assigns a custom role to a user.
-func (r *customRoleBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
-	l := ctxzap.Extract(ctx)
-
-	if principal.Id.ResourceType != userResourceType.Id {
-		l.Warn(
-			"okta-ciam-v2: only users can be granted custom role membership",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, fmt.Errorf("okta-ciam-v2: only users can be granted custom role membership")
-	}
-
-	customRoleID := entitlement.Resource.Id.Resource
-	userID := principal.Id.Resource
-
-	// Create the role assignment request for a custom role
-	assignRoleRequest := oktav5.NewAssignRoleRequest()
-	assignRoleRequest.SetType(customRoleID)
-
-	_, resp, err := r.connector.client.RoleAssignmentAPI.AssignRoleToUser(ctx, userID).AssignRoleRequest(*assignRoleRequest).Execute()
-	if err != nil {
-		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to assign custom role to user")
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	return nil, nil
-}
-
-// Revoke unassigns a custom role from a user.
-func (r *customRoleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
-	l := ctxzap.Extract(ctx)
-
-	entitlement := grant.Entitlement
-	principal := grant.Principal
-
-	if principal.Id.ResourceType != userResourceType.Id {
-		l.Warn(
-			"okta-ciam-v2: only users can have custom role membership revoked",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, fmt.Errorf("okta-ciam-v2: only users can have custom role membership revoked")
-	}
-
-	customRoleID := entitlement.Resource.Id.Resource
-	userID := principal.Id.Resource
-
-	// Get the user's assigned roles to find the role ID
-	userRoles, roleResp, err := r.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
-	if err != nil {
-		return nil, wrapError(handleOktaError(roleResp, err), "okta-ciam-v2: failed to list roles for user")
-	}
-	_ = roleResp.Body.Close()
-
-	// Find the role assignment ID for this custom role
-	var roleAssignmentID string
-	for _, userRole := range userRoles {
-		// Match on Type field (role ID), but use Id field (assignment ID) to revoke
-		if userRole.Type != nil && *userRole.Type == customRoleID {
-			if userRole.Id != nil {
-				roleAssignmentID = *userRole.Id
-			}
-			break
-		}
-	}
-
-	if roleAssignmentID == "" {
-		l.Warn("okta-ciam-v2: custom role not found for user",
-			zap.String("user_id", userID),
-			zap.String("custom_role_id", customRoleID),
-		)
-		return nil, fmt.Errorf("okta-ciam-v2: custom role not found for user")
-	}
-
-	resp, err := r.connector.client.RoleAssignmentAPI.UnassignRoleFromUser(ctx, userID, roleAssignmentID).Execute()
-	if err != nil {
-		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to unassign custom role from user")
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	return nil, nil
 }
