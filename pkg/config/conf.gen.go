@@ -4,7 +4,10 @@ package config
 import "reflect" 
 
 type OktaCiamWorkforce struct {
-	Configfield string `mapstructure:"configField"`
+	Domain string `mapstructure:"domain"`
+	ApiToken string `mapstructure:"api-token"`
+	EmailDomains []string `mapstructure:"email-domains"`
+	GroupNameFilter string `mapstructure:"group-name-filter"`
 }
 
 func (c* OktaCiamWorkforce) findFieldByTag(tagValue string) (any, bool) {
