@@ -14,7 +14,6 @@ type SessionStore interface {
 	Delete(ctx context.Context, key string, opt ...SessionStoreOption) error
 	Clear(ctx context.Context, opt ...SessionStoreOption) error
 	GetAll(ctx context.Context, opt ...SessionStoreOption) (map[string][]byte, error)
-	Close(ctx context.Context) error
 }
 
 type SessionStoreOption func(ctx context.Context, bag *SessionStoreBag) error
@@ -35,6 +34,13 @@ type SyncIDKey struct{}
 func WithSyncID(syncID string) SessionStoreOption {
 	return func(ctx context.Context, bag *SessionStoreBag) error {
 		bag.SyncID = syncID
+		return nil
+	}
+}
+
+func WithPrefix(prefix string) SessionStoreOption {
+	return func(ctx context.Context, bag *SessionStoreBag) error {
+		bag.Prefix = prefix
 		return nil
 	}
 }
