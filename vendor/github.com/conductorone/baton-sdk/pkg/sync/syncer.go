@@ -17,11 +17,11 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/bid"
 	"github.com/conductorone/baton-sdk/pkg/dotc1z"
 	"github.com/conductorone/baton-sdk/pkg/retry"
+	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/sync/expand"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	batonGrant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.opentelemetry.io/otel"
@@ -215,9 +215,12 @@ type syncer struct {
 	syncID                              string
 	skipEGForResourceType               map[string]bool
 	skipEntitlementsAndGrants           bool
+	skipGrants                          bool
 	resourceTypeTraits                  map[string][]v2.ResourceType_Trait
 	syncType                            connectorstore.SyncType
 	injectSyncIDAnnotation              bool
+	setSessionStore                     session.SetSessionStore
+	syncResourceTypes                   []string
 }
 
 const minCheckpointInterval = 10 * time.Second
@@ -350,6 +353,7 @@ func (s *syncer) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	resp, err := s.connector.Validate(ctx, &v2.ConnectorServiceValidateRequest{})
 	if err != nil {
 		return err
@@ -368,6 +372,13 @@ func (s *syncer) Sync(ctx context.Context) error {
 		}
 	}
 
+	syncResourceTypeMap := make(map[string]bool)
+	if len(s.syncResourceTypes) > 0 {
+		for _, rt := range s.syncResourceTypes {
+			syncResourceTypeMap[rt] = true
+		}
+	}
+
 	// Validate any targeted resource IDs before starting a sync.
 	targetedResources := []*v2.Resource{}
 	for _, resourceID := range s.targetedSyncResourceIDs {
@@ -375,6 +386,12 @@ func (s *syncer) Sync(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("error parsing resource id %s: %w", resourceID, err)
 		}
+		if len(s.syncResourceTypes) > 0 {
+			if _, ok := syncResourceTypeMap[r.Id.ResourceType]; !ok {
+				continue
+			}
+		}
+
 		targetedResources = append(targetedResources, r)
 	}
 
@@ -389,11 +406,6 @@ func (s *syncer) Sync(ctx context.Context) error {
 		err = errors.New("no syncID found after starting or resuming sync")
 		l.Error("no syncID found after starting or resuming sync", zap.Error(err))
 		return err
-	}
-
-	// Add ActiveSync to context once after we have the syncID
-	if syncID != "" {
-		ctx = sessions.SetSyncIDInContext(ctx, syncID)
 	}
 
 	span.SetAttributes(attribute.String("sync_id", syncID))
@@ -456,6 +468,9 @@ func (s *syncer) Sync(ctx context.Context) error {
 			if s.skipEntitlementsAndGrants {
 				s.state.SetShouldSkipEntitlementsAndGrants()
 			}
+			if s.skipGrants {
+				s.state.SetShouldSkipGrants()
+			}
 			if len(targetedResources) > 0 {
 				for _, r := range targetedResources {
 					s.state.PushAction(ctx, Action{
@@ -493,7 +508,9 @@ func (s *syncer) Sync(ctx context.Context) error {
 				continue
 			}
 			if !s.state.ShouldSkipEntitlementsAndGrants() {
-				s.state.PushAction(ctx, Action{Op: SyncGrantsOp})
+				if !s.state.ShouldSkipGrants() {
+					s.state.PushAction(ctx, Action{Op: SyncGrantsOp})
+				}
 				s.state.PushAction(ctx, Action{Op: SyncEntitlementsOp})
 			}
 			s.state.PushAction(ctx, Action{Op: SyncResourcesOp})
@@ -688,16 +705,43 @@ func (s *syncer) SyncResourceTypes(ctx context.Context) error {
 		return err
 	}
 
-	err = s.store.PutResourceTypes(ctx, resp.List...)
+	var resourceTypes []*v2.ResourceType
+	if len(s.syncResourceTypes) > 0 {
+		syncResourceTypeMap := make(map[string]bool)
+		for _, rt := range s.syncResourceTypes {
+			syncResourceTypeMap[rt] = true
+		}
+		for _, rt := range resp.List {
+			if shouldSync := syncResourceTypeMap[rt.Id]; shouldSync {
+				resourceTypes = append(resourceTypes, rt)
+			}
+		}
+	} else {
+		resourceTypes = resp.List
+	}
+
+	err = s.store.PutResourceTypes(ctx, resourceTypes...)
 	if err != nil {
 		return err
 	}
 
-	s.counts.ResourceTypes += len(resp.List)
-	s.handleProgress(ctx, s.state.Current(), len(resp.List))
+	s.counts.ResourceTypes += len(resourceTypes)
+	s.handleProgress(ctx, s.state.Current(), len(resourceTypes))
 
 	if resp.NextPageToken == "" {
 		s.counts.LogResourceTypesProgress(ctx)
+
+		if len(s.syncResourceTypes) > 0 {
+			validResourceTypesResp, err := s.store.ListResourceTypes(ctx, &v2.ResourceTypesServiceListResourceTypesRequest{PageToken: pageToken})
+			if err != nil {
+				return err
+			}
+			err = validateSyncResourceTypesFilter(s.syncResourceTypes, validResourceTypesResp.List)
+			if err != nil {
+				return err
+			}
+		}
+
 		s.state.FinishAction(ctx)
 		return nil
 	}
@@ -707,6 +751,19 @@ func (s *syncer) SyncResourceTypes(ctx context.Context) error {
 		return err
 	}
 
+	return nil
+}
+
+func validateSyncResourceTypesFilter(resourceTypesFilter []string, validResourceTypes []*v2.ResourceType) error {
+	validResourceTypesMap := make(map[string]bool)
+	for _, rt := range validResourceTypes {
+		validResourceTypesMap[rt.Id] = true
+	}
+	for _, rt := range resourceTypesFilter {
+		if _, ok := validResourceTypesMap[rt]; !ok {
+			return fmt.Errorf("invalid resource type '%s' in filter", rt)
+		}
+	}
 	return nil
 }
 
@@ -1047,6 +1104,10 @@ func (s *syncer) shouldSkipEntitlementsAndGrants(ctx context.Context, r *v2.Reso
 func (s *syncer) shouldSkipGrants(ctx context.Context, r *v2.Resource) (bool, error) {
 	annos := annotations.Annotations(r.GetAnnotations())
 	if annos.Contains(&v2.SkipGrants{}) {
+		return true, nil
+	}
+
+	if s.state.ShouldSkipGrants() {
 		return true, nil
 	}
 
@@ -2713,6 +2774,9 @@ func (s *syncer) loadStore(ctx context.Context) error {
 		return err
 	}
 
+	if s.setSessionStore != nil {
+		s.setSessionStore.SetSessionStore(ctx, store)
+	}
 	s.store = store
 
 	return nil
@@ -2831,6 +2895,18 @@ func WithTargetedSyncResourceIDs(resourceIDs []string) SyncOpt {
 	}
 }
 
+func WithSessionStore(sessionStore session.SetSessionStore) SyncOpt {
+	return func(s *syncer) {
+		s.setSessionStore = sessionStore
+	}
+}
+
+func WithSyncResourceTypes(resourceTypeIDs []string) SyncOpt {
+	return func(s *syncer) {
+		s.syncResourceTypes = resourceTypeIDs
+	}
+}
+
 func WithOnlyExpandGrants() SyncOpt {
 	return func(s *syncer) {
 		s.onlyExpandGrants = true
@@ -2860,6 +2936,12 @@ func WithSkipEntitlementsAndGrants(skip bool) SyncOpt {
 		} else {
 			s.syncType = connectorstore.SyncTypeFull
 		}
+	}
+}
+
+func WithSkipGrants(skip bool) SyncOpt {
+	return func(s *syncer) {
+		s.skipGrants = skip
 	}
 }
 

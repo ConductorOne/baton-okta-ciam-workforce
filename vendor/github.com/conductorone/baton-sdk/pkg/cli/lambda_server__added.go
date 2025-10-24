@@ -22,7 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/conductorone/baton-sdk/internal/connector"
-	pb_connector_api "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
+	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
 	"github.com/conductorone/baton-sdk/pkg/auth"
 	"github.com/conductorone/baton-sdk/pkg/field"
 	c1_lambda_grpc "github.com/conductorone/baton-sdk/pkg/lambda/grpc"
@@ -37,7 +37,7 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 	ctx context.Context,
 	name string,
 	v *viper.Viper,
-	getconnector GetConnectorFunc[T],
+	getconnector GetConnectorFunc2[T],
 	connectorSchema field.Configuration,
 	mainCmd *cobra.Command,
 ) error {
@@ -121,10 +121,10 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 		}
 
 		// Create connector config service client using the DPoP client
-		configClient := pb_connector_api.NewConnectorConfigServiceClient(grpcClient)
+		configClient := v1.NewConnectorConfigServiceClient(grpcClient)
 
 		// Get configuration, convert it to viper flag values, then proceed.
-		config, err := configClient.GetConnectorConfig(runCtx, &pb_connector_api.GetConnectorConfigRequest{})
+		config, err := configClient.GetConnectorConfig(runCtx, &v1.GetConnectorConfigRequest{})
 		if err != nil {
 			return fmt.Errorf("lambda-run: failed to get connector config: %w", err)
 		}
@@ -145,7 +145,10 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			return fmt.Errorf("lambda-run: failed to unmarshal decrypted config: %w", err)
 		}
 
-		t, err := MakeGenericConfiguration[T](v)
+		// parse content directly for lambdas, don't read from file
+		readFromPath := false
+		decodeOpts := field.WithAdditionalDecodeHooks(field.FileUploadDecodeHook(readFromPath))
+		t, err := MakeGenericConfiguration[T](v, decodeOpts)
 		if err != nil {
 			return fmt.Errorf("lambda-run: failed to make generic configuration: %w", err)
 		}
@@ -155,7 +158,15 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 				cfg.Set(k, v)
 			}
 		default:
-			err = mapstructure.Decode(configStruct.AsMap(), cfg)
+			// Use mapstructure with decode hook for file upload fields
+			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+				DecodeHook: field.ComposeDecodeHookFunc(decodeOpts),
+				Result:     cfg,
+			})
+			if err != nil {
+				return fmt.Errorf("lambda-run: failed to create decoder: %w", err)
+			}
+			err = decoder.Decode(configStruct.AsMap())
 			if err != nil {
 				return fmt.Errorf("lambda-run: failed to decode config: %w", err)
 			}
@@ -163,14 +174,6 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 
 		if err := field.Validate(connectorSchema, t); err != nil {
 			return fmt.Errorf("lambda-run: failed to validate config: %w", err)
-		}
-
-		// Create session cache and add to context
-		// Use the same DPoP credentials for the session cache
-		sessionCacheConstructor := createSessionCacheConstructor(grpcClient)
-		runCtx, err = WithSessionCache(runCtx, sessionCacheConstructor)
-		if err != nil {
-			return fmt.Errorf("lambda-run: failed to create session cache: %w", err)
 		}
 
 		clientSecret := v.GetString("client-secret")
@@ -182,7 +185,9 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			runCtx = context.WithValue(runCtx, crypto.ContextClientSecretKey, secretJwk)
 		}
 
-		c, err := getconnector(runCtx, t)
+		c, err := getconnector(runCtx, t, RunTimeOpts{
+			SessionStore: &lazySessionStore{constructor: createSessionCacheConstructor(grpcClient)},
+		})
 		if err != nil {
 			return fmt.Errorf("lambda-run: failed to get connector: %w", err)
 		}
@@ -214,7 +219,7 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			TicketingEnabled:    true,
 		}
 
-		chain := ugrpc.ChainUnaryInterceptors(authOpt, ugrpc.SessionCacheUnaryInterceptor(runCtx))
+		chain := ugrpc.ChainUnaryInterceptors(authOpt)
 
 		s := c1_lambda_grpc.NewServer(chain)
 		connector.Register(runCtx, s, c, opts)
@@ -226,11 +231,11 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 	return nil
 }
 
-// createSessionCacheConstructor creates a session cache constructor function that uses the provided gRPC client
+// createSessionCacheConstructor creates a session cache constructor function that uses the provided gRPC client.
 func createSessionCacheConstructor(grpcClient grpc.ClientConnInterface) sessions.SessionStoreConstructor {
 	return func(ctx context.Context, opt ...sessions.SessionStoreConstructorOption) (sessions.SessionStore, error) {
 		// Create the gRPC session client using the same gRPC connection
-		client := pb_connector_api.NewBatonSessionServiceClient(grpcClient)
+		client := v1.NewBatonSessionServiceClient(grpcClient)
 		// Create and return the session cache
 		return session.NewGRPCSessionCache(ctx, client, opt...)
 	}
