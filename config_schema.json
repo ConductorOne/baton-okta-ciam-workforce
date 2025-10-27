@@ -1,8 +1,46 @@
 {
   "fields": [
     {
-      "name": "configField",
-      "stringField": {}
+      "name": "api-token",
+      "displayName": "API Token",
+      "description": "Okta API token",
+      "isRequired": true,
+      "isSecret": true,
+      "stringField": {
+        "rules": {
+          "isRequired": true
+        }
+      }
+    },
+    {
+      "name": "domain",
+      "displayName": "Domain",
+      "description": "Okta domain (e.g., company.okta.com)",
+      "isRequired": true,
+      "stringField": {
+        "rules": {
+          "isRequired": true
+        }
+      }
+    },
+    {
+      "name": "email-domains",
+      "displayName": "Email Domains",
+      "description": "Comma-separated list of email domains to filter users (e.g., example.com,company.com)",
+      "isRequired": true,
+      "stringSliceField": {
+        "rules": {
+          "isRequired": true
+        }
+      }
+    },
+    {
+      "name": "group-name-filter",
+      "displayName": "Group Name Filter",
+      "description": "String to filter group names (only groups containing this string will be synced)",
+      "stringField": {
+        "rules": {}
+      }
     },
     {
       "name": "log-level",
@@ -55,5 +93,16 @@
       "boolField": {}
     }
   ],
-  "displayName": "Okta Ciam Workforce"
+  "constraints": [
+    {
+      "kind": "CONSTRAINT_KIND_REQUIRED_TOGETHER",
+      "fieldNames": [
+        "domain",
+        "api-token"
+      ]
+    }
+  ],
+  "displayName": "Okta CIAM Workforce",
+  "helpUrl": "/docs/baton/okta-ciam-workforce",
+  "iconUrl": "/static/app-icons/okta.svg"
 }

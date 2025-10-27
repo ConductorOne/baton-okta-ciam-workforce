@@ -3,6 +3,59 @@
   "resourceTypeCapabilities": [
     {
       "resourceType": {
+        "id": "custom-role",
+        "displayName": "Custom Role",
+        "traits": [
+          "TRAIT_ROLE"
+        ],
+        "annotations": [
+          {
+            "@type": "type.googleapis.com/c1.connector.v2.SkipGrants"
+          }
+        ]
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC"
+      ]
+    },
+    {
+      "resourceType": {
+        "id": "group",
+        "displayName": "Group",
+        "traits": [
+          "TRAIT_GROUP"
+        ],
+        "annotations": [
+          {
+            "@type": "type.googleapis.com/c1.connector.v2.SkipGrants"
+          }
+        ]
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC",
+        "CAPABILITY_PROVISION"
+      ]
+    },
+    {
+      "resourceType": {
+        "id": "role",
+        "displayName": "Role",
+        "traits": [
+          "TRAIT_ROLE"
+        ],
+        "annotations": [
+          {
+            "@type": "type.googleapis.com/c1.connector.v2.SkipGrants"
+          }
+        ]
+      },
+      "capabilities": [
+        "CAPABILITY_SYNC",
+        "CAPABILITY_PROVISION"
+      ]
+    },
+    {
+      "resourceType": {
         "id": "user",
         "displayName": "User",
         "traits": [
@@ -15,6 +68,7 @@
     }
   ],
   "connectorCapabilities": [
+    "CAPABILITY_PROVISION",
     "CAPABILITY_SYNC"
   ],
   "credentialDetails": {}
