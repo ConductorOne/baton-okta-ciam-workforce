@@ -40,7 +40,7 @@ func (g *groupBuilder) List(
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: groupResourceType.Id})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -60,7 +60,7 @@ func (g *groupBuilder) List(
 
 	groups, resp, err := req.Execute()
 	if err != nil {
-		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list groups")
+		return nil, "", nil, wrapError(handleOktaError(resp, err), "failed to list groups")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -73,7 +73,7 @@ func (g *groupBuilder) List(
 	for _, group := range groups {
 		groupResource, err := g.groupResource(ctx, &group)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to create group resource: %w", err)
+			return nil, "", nil, fmt.Errorf("failed to create group resource: %w", err)
 		}
 
 		rv = append(rv, groupResource)
@@ -81,12 +81,12 @@ func (g *groupBuilder) List(
 
 	err = bag.Next(nextPage)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to set next page: %w", err)
 	}
 
 	bagToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to marshal page token: %w", err)
 	}
 
 	return rv, bagToken, annos, nil
@@ -148,7 +148,7 @@ func (g *groupBuilder) groupResource(ctx context.Context, group *oktav5.Group) (
 
 	profile, err := structpb.NewStruct(profileMap)
 	if err != nil {
-		return nil, fmt.Errorf("okta-ciam-v2: failed to construct group profile: %w", err)
+		return nil, fmt.Errorf("failed to construct group profile: %w", err)
 	}
 
 	groupTrait := &v2.GroupTrait{
@@ -174,11 +174,11 @@ func (g *groupBuilder) Grant(ctx context.Context, principal *v2.Resource, entitl
 
 	if principal.Id.ResourceType != userResourceType.Id {
 		l.Warn(
-			"okta-ciam-v2: only users can be granted group membership",
+			"only users can be granted group membership",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("okta-ciam-v2: only users can be granted group membership")
+		return nil, fmt.Errorf("only users can be granted group membership")
 	}
 
 	groupID := entitlement.Resource.Id.Resource
@@ -186,7 +186,7 @@ func (g *groupBuilder) Grant(ctx context.Context, principal *v2.Resource, entitl
 
 	resp, err := g.connector.client.GroupAPI.AssignUserToGroup(ctx, groupID, userID).Execute()
 	if err != nil {
-		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to add user to group")
+		return nil, wrapError(handleOktaError(resp, err), "failed to add user to group")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -202,11 +202,11 @@ func (g *groupBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations
 
 	if principal.Id.ResourceType != userResourceType.Id {
 		l.Warn(
-			"okta-ciam-v2: only users can have group membership revoked",
+			"only users can have group membership revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("okta-ciam-v2: only users can have group membership revoked")
+		return nil, fmt.Errorf("only users can have group membership revoked")
 	}
 
 	groupID := entitlement.Resource.Id.Resource
@@ -214,7 +214,7 @@ func (g *groupBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations
 
 	resp, err := g.connector.client.GroupAPI.UnassignUserFromGroup(ctx, groupID, userID).Execute()
 	if err != nil {
-		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to remove user from group")
+		return nil, wrapError(handleOktaError(resp, err), "failed to remove user from group")
 	}
 	defer func() { _ = resp.Body.Close() }()
 

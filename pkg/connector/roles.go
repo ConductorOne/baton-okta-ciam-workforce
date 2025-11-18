@@ -65,7 +65,7 @@ func (r *roleBuilder) List(
 	for _, role := range standardRoleTypes {
 		roleResource, err := r.roleResource(ctx, &role)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to create role resource: %w", err)
+			return nil, "", nil, fmt.Errorf("failed to create role resource: %w", err)
 		}
 		rv = append(rv, roleResource)
 	}
@@ -141,11 +141,11 @@ func (r *roleBuilder) Grant(ctx context.Context, principal *v2.Resource, entitle
 
 	if principal.Id.ResourceType != userResourceType.Id {
 		l.Warn(
-			"okta-ciam-v2: only users can be granted role membership",
+			"only users can be granted role membership",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("okta-ciam-v2: only users can be granted role membership")
+		return nil, fmt.Errorf("only users can be granted role membership")
 	}
 
 	roleType := entitlement.Resource.Id.Resource
@@ -157,7 +157,7 @@ func (r *roleBuilder) Grant(ctx context.Context, principal *v2.Resource, entitle
 
 	_, resp, err := r.connector.client.RoleAssignmentAPI.AssignRoleToUser(ctx, userID).AssignRoleRequest(*assignRoleRequest).Execute()
 	if err != nil {
-		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to assign role to user")
+		return nil, wrapError(handleOktaError(resp, err), "failed to assign role to user")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -173,11 +173,11 @@ func (r *roleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 
 	if principal.Id.ResourceType != userResourceType.Id {
 		l.Warn(
-			"okta-ciam-v2: only users can have role membership revoked",
+			"only users can have role membership revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("okta-ciam-v2: only users can have role membership revoked")
+		return nil, fmt.Errorf("only users can have role membership revoked")
 	}
 
 	roleType := entitlement.Resource.Id.Resource
@@ -186,7 +186,7 @@ func (r *roleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 	// Get the user's assigned roles to find the role ID
 	userRoles, roleResp, err := r.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
 	if err != nil {
-		return nil, wrapError(handleOktaError(roleResp, err), "okta-ciam-v2: failed to list roles for user")
+		return nil, wrapError(handleOktaError(roleResp, err), "failed to list roles for user")
 	}
 	_ = roleResp.Body.Close()
 
@@ -202,16 +202,16 @@ func (r *roleBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 	}
 
 	if roleID == "" {
-		l.Warn("okta-ciam-v2: role not found for user",
+		l.Warn("role not found for user",
 			zap.String("user_id", userID),
 			zap.String("role_type", roleType),
 		)
-		return nil, fmt.Errorf("okta-ciam-v2: role not found for user")
+		return nil, fmt.Errorf("role not found for user")
 	}
 
 	resp, err := r.connector.client.RoleAssignmentAPI.UnassignRoleFromUser(ctx, userID, roleID).Execute()
 	if err != nil {
-		return nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to unassign role from user")
+		return nil, wrapError(handleOktaError(resp, err), "failed to unassign role from user")
 	}
 	defer func() { _ = resp.Body.Close() }()
 

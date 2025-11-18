@@ -50,7 +50,7 @@ func (u *userBuilder) List(
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: userResourceType.Id})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -69,7 +69,7 @@ func (u *userBuilder) List(
 
 	users, resp, err := req.Execute()
 	if err != nil {
-		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list users")
+		return nil, "", nil, wrapError(handleOktaError(resp, err), "failed to list users")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -86,7 +86,7 @@ func (u *userBuilder) List(
 
 		userResource, err := u.userResource(ctx, &user)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to create user resource: %w", err)
+			return nil, "", nil, fmt.Errorf("failed to create user resource: %w", err)
 		}
 
 		rv = append(rv, userResource)
@@ -94,12 +94,12 @@ func (u *userBuilder) List(
 
 	err = bag.Next(nextPage)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to set next page: %w", err)
 	}
 
 	bagToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to marshal page token: %w", err)
 	}
 
 	return rv, bagToken, annos, nil
@@ -124,7 +124,7 @@ func (u *userBuilder) Grants(
 
 	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: userResourceType.Id})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
 	}
 
 	var rv []*v2.Grant
@@ -135,7 +135,7 @@ func (u *userBuilder) Grants(
 		// List all roles assigned to this user
 		userRoles, resp, err := u.connector.client.RoleAssignmentAPI.ListAssignedRolesForUser(ctx, userID).Execute()
 		if err != nil {
-			return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list assigned roles for user")
+			return nil, "", nil, wrapError(handleOktaError(resp, err), "failed to list assigned roles for user")
 		}
 		defer func() { _ = resp.Body.Close() }()
 
@@ -203,7 +203,7 @@ func (u *userBuilder) Grants(
 
 	userGroups, resp, err := req.Execute()
 	if err != nil {
-		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list user groups")
+		return nil, "", nil, wrapError(handleOktaError(resp, err), "failed to list user groups")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -243,12 +243,12 @@ func (u *userBuilder) Grants(
 
 	err = bag.Next(nextPage)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to set next page: %w", err)
 	}
 
 	bagToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to marshal page token: %w", err)
 	}
 
 	return rv, bagToken, annos, nil

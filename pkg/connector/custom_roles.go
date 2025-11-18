@@ -39,7 +39,7 @@ func (r *customRoleBuilder) List(
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: customRoleResourceType.Id})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to parse page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -52,7 +52,7 @@ func (r *customRoleBuilder) List(
 
 	iamRoles, resp, err := req.Execute()
 	if err != nil {
-		return nil, "", nil, wrapError(handleOktaError(resp, err), "okta-ciam-v2: failed to list IAM roles")
+		return nil, "", nil, wrapError(handleOktaError(resp, err), "failed to list IAM roles")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -83,7 +83,7 @@ func (r *customRoleBuilder) List(
 			if !standardRoleTypeSet[roleID] {
 				roleResource, err := r.customRoleResource(ctx, &role)
 				if err != nil {
-					return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to create custom role resource: %w", err)
+					return nil, "", nil, fmt.Errorf("failed to create custom role resource: %w", err)
 				}
 				rv = append(rv, roleResource)
 			}
@@ -92,12 +92,12 @@ func (r *customRoleBuilder) List(
 
 	err = bag.Next(nextPage)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to set next page: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to set next page: %w", err)
 	}
 
 	bagToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("okta-ciam-v2: failed to marshal page token: %w", err)
+		return nil, "", nil, fmt.Errorf("failed to marshal page token: %w", err)
 	}
 
 	return rv, bagToken, annos, nil

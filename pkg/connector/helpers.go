@@ -172,13 +172,6 @@ func wrapError(err error, message string) error {
 	if err == nil {
 		return nil
 	}
-
-	// If it's already a gRPC status error, preserve it
-	if _, ok := status.FromError(err); ok {
-		return err
-	}
-
-	// Otherwise wrap with the message
 	return fmt.Errorf("%s: %w", message, err)
 }
 
