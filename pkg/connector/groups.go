@@ -38,6 +38,7 @@ func (g *groupBuilder) List(
 	parentResourceID *v2.ResourceId,
 	pToken *pagination.Token,
 ) ([]*v2.Resource, string, annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
 	bag, pageToken, err := parsePageToken(pToken, &v2.ResourceId{ResourceType: groupResourceType.Id})
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
@@ -48,8 +49,11 @@ func (g *groupBuilder) List(
 	// Default page size if not specified
 	pageSize := getPageSize(pToken, 50)
 
+	l.Debug("okta-ciam-workforce: listing groups", zap.Int("page_size", pageSize),
+		zap.String("group_name_filter", g.connector.groupNameFilter), zap.String("page_token", pageToken))
 	// List groups
 	req := g.connector.client.GroupAPI.ListGroups(ctx)
+
 	if g.connector.groupNameFilter != "" {
 		req = req.Q(g.connector.groupNameFilter)
 	}

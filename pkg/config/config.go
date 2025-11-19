@@ -21,7 +21,7 @@ var (
 	EmailDomainsField = field.StringSliceField(
 		"email-domains",
 		field.WithDisplayName("Email Domains"),
-		field.WithDescription("Comma-separated list of email domains to filter users (e.g., example.com,company.com)"),
+		field.WithDescription("A list of email domains to filter users (e.g., example.com,company.com)"),
 		field.WithRequired(true),
 	)
 	GroupNameFilterField = field.StringField(
