@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -123,4 +124,22 @@ func getPageSize(pToken *pagination.Token, defaultSize int) int {
 		return defaultSize
 	}
 	return pToken.Size
+}
+
+// extractAfterToken extracts the 'after' parameter value from an Okta pagination URL.
+// The Okta SDK's NextPage() method returns a URL like "/api/v1/groups?after=00g14s5if2zG5JI8H5d7&limit=50"
+// but the After() method expects just the token value "00g14s5if2zG5JI8H5d7".
+func extractAfterToken(nextPageURL string) string {
+	if nextPageURL == "" {
+		return ""
+	}
+
+	// Parse the URL to extract query parameters
+	parsedURL, err := url.Parse(nextPageURL)
+	if err != nil {
+		return ""
+	}
+
+	// Extract the 'after' parameter from the query string
+	return parsedURL.Query().Get("after")
 }

@@ -3,7 +3,6 @@ package connector
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -65,7 +64,7 @@ func (r *customRoleBuilder) List(
 		nextPageURL := iamRoles.Links.Next.Href
 		if nextPageURL != "" {
 			// Extract the "after" parameter from the URL
-			nextPage = extractAfterParam(nextPageURL)
+			nextPage = extractAfterToken(nextPageURL)
 		}
 	}
 
@@ -101,15 +100,6 @@ func (r *customRoleBuilder) List(
 	}
 
 	return rv, bagToken, annos, nil
-}
-
-// extractAfterParam extracts the "after" parameter from a URL.
-func extractAfterParam(url string) string {
-	parts := strings.Split(url, "after=")
-	if len(parts) > 1 {
-		return strings.Split(parts[1], "&")[0]
-	}
-	return ""
 }
 
 // Entitlements returns the "assigned" entitlement for a custom role.
