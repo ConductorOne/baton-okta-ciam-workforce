@@ -53,6 +53,11 @@ everyone. If you have questions, problems, or ideas: Please open a GitHub Issue!
 
 See [CONTRIBUTING.md](https://github.com/ConductorOne/baton/blob/main/CONTRIBUTING.md) for more details.
 
+
+# Using the connector on the command Line
+
+The --email-domains needs to be a comma separated list of email domains
+
 # `baton-okta-ciam-workforce` Command Line Usage
 
 ```
