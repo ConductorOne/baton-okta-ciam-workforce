@@ -68,7 +68,9 @@ func (g *groupBuilder) List(
 	annos := extractRateLimitAnnotations(resp)
 
 	// Get next page token using SDK's built-in pagination helper
-	nextPage := resp.NextPage()
+	// NextPage() returns a URL like "/api/v1/groups?after=TOKEN&limit=50"
+	// We need to extract just the 'after' parameter value
+	nextPage := extractAfterToken(resp.NextPage())
 
 	for _, group := range groups {
 		groupResource, err := g.groupResource(ctx, &group)

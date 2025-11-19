@@ -77,7 +77,9 @@ func (u *userBuilder) List(
 	annos := extractRateLimitAnnotations(resp)
 
 	// Get next page token using SDK's built-in pagination helper
-	nextPage := resp.NextPage()
+	// NextPage() returns a URL like "/api/v1/users?after=TOKEN&limit=50"
+	// We need to extract just the 'after' parameter value
+	nextPage := extractAfterToken(resp.NextPage())
 
 	for _, user := range users {
 		if !u.shouldIncludeUser(user) {
@@ -212,7 +214,9 @@ func (u *userBuilder) Grants(
 	annos = append(annos, groupAnnos...)
 
 	// Get next page token using SDK's built-in pagination helper
-	nextPage := resp.NextPage()
+	// NextPage() returns a URL like "/api/v1/users/{userId}/groups?after=TOKEN&limit=50"
+	// We need to extract just the 'after' parameter value
+	nextPage := extractAfterToken(resp.NextPage())
 
 	// Create a grant for each group the user is a member of
 	for _, group := range userGroups {
