@@ -26,7 +26,7 @@
     {
       "name": "email-domains",
       "displayName": "Email Domains",
-      "description": "Comma-separated list of email domains to filter users (e.g., example.com,company.com)",
+      "description": "A list of email domains to filter users (e.g., example.com,company.com)",
       "isRequired": true,
       "stringSliceField": {
         "rules": {
@@ -91,6 +91,14 @@
       "description": "Disable OpenTelemetry tracing",
       "isOps": true,
       "boolField": {}
+    },
+    {
+      "name": "session-store-maximum-size",
+      "description": "The maximum size of the local in-memory session store cache in bytes.",
+      "isOps": true,
+      "intField": {
+        "defaultValue": "15728640"
+      }
     }
   ],
   "constraints": [
