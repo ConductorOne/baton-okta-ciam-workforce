@@ -38,9 +38,7 @@ func New(ctx context.Context, domain string, apiToken string, emailDomains []str
 		oktav5.WithOrgUrl(fmt.Sprintf("https://%s", domain)),
 		oktav5.WithToken(apiToken),
 		oktav5.WithHttpClientPtr(httpClient),
-		oktav5.WithCache(true),
-		oktav5.WithCacheTti(300),  // 5 minutes
-		oktav5.WithCacheTtl(3600), // 1 hour
+		oktav5.WithCache(false),
 		oktav5.WithRateLimitMaxRetries(3),
 	)
 	if err != nil {
