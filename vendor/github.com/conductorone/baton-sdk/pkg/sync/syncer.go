@@ -215,6 +215,7 @@ type syncer struct {
 	dontExpandGrants                    bool
 	syncID                              string
 	skipEGForResourceType               map[string]bool
+	skipEntitlementsForResourceType     map[string]bool
 	skipEntitlementsAndGrants           bool
 	skipGrants                          bool
 	resourceTypeTraits                  map[string][]v2.ResourceType_Trait
@@ -255,7 +256,6 @@ func (s *syncer) handleInitialActionForStep(ctx context.Context, a Action) {
 
 func (s *syncer) handleProgress(ctx context.Context, a *Action, c int) {
 	if s.progressHandler != nil {
-		//nolint:gosec // No risk of overflow because `c` is a slice length.
 		count := uint32(c)
 		s.progressHandler(NewProgress(a, count))
 	}
@@ -475,9 +475,12 @@ func (s *syncer) Sync(ctx context.Context) error {
 			return err
 		}
 
-		// TODO: count actions divided by warnings and error if warning percentage is too high
+		// If we have more than 10 warnings and more than 10% of actions ended in a warning, exit the sync.
 		if len(warnings) > 10 {
-			return fmt.Errorf("too many warnings, exiting sync. warnings: %v", warnings)
+			completedActionsCount := s.state.GetCompletedActionsCount()
+			if completedActionsCount > 0 && float64(len(warnings))/float64(completedActionsCount) > 0.1 {
+				return fmt.Errorf("too many warnings, exiting sync. warnings: %v completed actions: %d", warnings, completedActionsCount)
+			}
 		}
 		select {
 		case <-runCtx.Done():
@@ -550,7 +553,10 @@ func (s *syncer) Sync(ctx context.Context) error {
 				if !s.state.ShouldSkipGrants() {
 					s.state.PushAction(ctx, Action{Op: SyncGrantsOp})
 				}
+
 				s.state.PushAction(ctx, Action{Op: SyncEntitlementsOp})
+
+				s.state.PushAction(ctx, Action{Op: SyncStaticEntitlementsOp})
 			}
 			s.state.PushAction(ctx, Action{Op: SyncResourcesOp})
 			s.state.PushAction(ctx, Action{Op: SyncResourceTypesOp})
@@ -588,6 +594,18 @@ func (s *syncer) Sync(ctx context.Context) error {
 			}
 			continue
 
+		case SyncStaticEntitlementsOp:
+			err = s.SyncStaticEntitlements(ctx)
+			if isWarning(ctx, err) {
+				l.Warn("skipping sync static entitlements action", zap.Any("stateAction", stateAction), zap.Error(err))
+				warnings = append(warnings, err)
+				s.state.FinishAction(ctx)
+				continue
+			}
+			if !retryer.ShouldWaitAndRetry(ctx, err) {
+				return err
+			}
+			continue
 		case SyncEntitlementsOp:
 			err = s.SyncEntitlements(ctx)
 			if isWarning(ctx, err) {
@@ -718,6 +736,29 @@ func (s *syncer) SkipSync(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *syncer) listAllResourceTypes(ctx context.Context) iter.Seq2[[]*v2.ResourceType, error] {
+	return func(yield func([]*v2.ResourceType, error) bool) {
+		pageToken := ""
+		for {
+			resp, err := s.connector.ListResourceTypes(ctx, v2.ResourceTypesServiceListResourceTypesRequest_builder{PageToken: pageToken}.Build())
+			if err != nil {
+				_ = yield(nil, err)
+				return
+			}
+			resourceTypes := resp.GetList()
+			if len(resourceTypes) > 0 {
+				if !yield(resourceTypes, err) {
+					return
+				}
+			}
+			pageToken = resp.GetNextPageToken()
+			if pageToken == "" {
+				return
+			}
+		}
+	}
 }
 
 // SyncResourceTypes calls the ListResourceType() connector endpoint and persists the results in to the datasource.
@@ -914,7 +955,7 @@ func (s *syncer) SyncTargetedResource(ctx context.Context) error {
 		})
 	}
 
-	shouldSkipEnts, err := s.shouldSkipEntitlementsAndGrants(ctx, resource)
+	shouldSkipEnts, err := s.shouldSkipEntitlements(ctx, resource)
 	if err != nil {
 		return err
 	}
@@ -1154,6 +1195,43 @@ func (s *syncer) shouldSkipGrants(ctx context.Context, r *v2.Resource) (bool, er
 	return s.shouldSkipEntitlementsAndGrants(ctx, r)
 }
 
+func (s *syncer) shouldSkipEntitlements(ctx context.Context, r *v2.Resource) (bool, error) {
+	ctx, span := tracer.Start(ctx, "syncer.shouldSkipEntitlements")
+	defer span.End()
+
+	ok, err := s.shouldSkipEntitlementsAndGrants(ctx, r)
+	if err != nil {
+		return false, err
+	}
+
+	if ok {
+		return true, nil
+	}
+
+	rAnnos := annotations.Annotations(r.GetAnnotations())
+	if rAnnos.Contains(&v2.SkipEntitlements{}) || rAnnos.Contains(&v2.SkipEntitlementsAndGrants{}) {
+		return true, nil
+	}
+
+	if skip, ok := s.skipEntitlementsForResourceType[r.GetId().GetResourceType()]; ok {
+		return skip, nil
+	}
+
+	rt, err := s.store.GetResourceType(ctx, reader_v2.ResourceTypesReaderServiceGetResourceTypeRequest_builder{
+		ResourceTypeId: r.GetId().GetResourceType(),
+	}.Build())
+	if err != nil {
+		return false, err
+	}
+
+	rtAnnos := annotations.Annotations(rt.GetResourceType().GetAnnotations())
+
+	skipEntitlements := rtAnnos.Contains(&v2.SkipEntitlements{}) || rtAnnos.Contains(&v2.SkipEntitlementsAndGrants{})
+	s.skipEntitlementsForResourceType[r.GetId().GetResourceType()] = skipEntitlements
+
+	return skipEntitlements, nil
+}
+
 // SyncEntitlements fetches the entitlements from the connector. It first lists each resource from the datastore,
 // and pushes an action to fetch the entitlements for each resource.
 func (s *syncer) SyncEntitlements(ctx context.Context) error {
@@ -1184,7 +1262,7 @@ func (s *syncer) SyncEntitlements(ctx context.Context) error {
 		}
 
 		for _, r := range resp.GetList() {
-			shouldSkipEntitlements, err := s.shouldSkipEntitlementsAndGrants(ctx, r)
+			shouldSkipEntitlements, err := s.shouldSkipEntitlements(ctx, r)
 			if err != nil {
 				return err
 			}
@@ -1248,6 +1326,109 @@ func (s *syncer) syncEntitlementsForResource(ctx context.Context, resourceID *v2
 		s.counts.EntitlementsProgress[resourceID.GetResourceType()] += 1
 		s.counts.LogEntitlementsProgress(ctx, resourceID.GetResourceType())
 
+		s.state.FinishAction(ctx)
+	}
+
+	return nil
+}
+
+func (s *syncer) SyncStaticEntitlements(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "syncer.SyncStaticEntitlements")
+	defer span.End()
+
+	if s.state.ResourceTypeID(ctx) != "" {
+		return s.syncStaticEntitlementsForResourceType(ctx, s.state.ResourceTypeID(ctx))
+	}
+
+	ctxzap.Extract(ctx).Info("Syncing static entitlements...")
+	s.handleInitialActionForStep(ctx, *s.state.Current())
+
+	s.state.FinishAction(ctx)
+	for rts, err := range s.listAllResourceTypes(ctx) {
+		if err != nil {
+			return err
+		}
+		for _, rt := range rts {
+			// Queue up actions to sync static entitlements for each resource type
+			s.state.PushAction(ctx, Action{Op: SyncStaticEntitlementsOp, ResourceTypeID: rt.GetId()})
+		}
+	}
+
+	return nil
+}
+
+func (s *syncer) syncStaticEntitlementsForResourceType(ctx context.Context, resourceTypeID string) error {
+	ctx, span := tracer.Start(ctx, "syncer.syncStaticEntitlementsForResource")
+	defer span.End()
+
+	resp, err := s.connector.ListStaticEntitlements(ctx, v2.EntitlementsServiceListStaticEntitlementsRequest_builder{
+		ResourceTypeId: resourceTypeID,
+		PageToken:      s.state.PageToken(ctx),
+		ActiveSyncId:   s.getActiveSyncID(),
+	}.Build())
+	if err != nil {
+		// Ignore prefixError if we're calling a lambda with an old version of baton-sdk.
+		if strings.Contains(err.Error(), `unable to resolve \"type.googleapis.com/c1.connector.v2.EntitlementsServiceListStaticEntitlementsRequest\": \"not found\"","errorType":"prefixError"`) {
+			l := ctxzap.Extract(ctx)
+			l.Info("ignoring prefixError when calling ListStaticEntitlements", zap.Error(err))
+			s.state.FinishAction(ctx)
+			return nil
+		}
+
+		return err
+	}
+
+	for _, ent := range resp.GetList() {
+		resourcePageToken := ""
+		for {
+			// Get all resources of resource type and create entitlements for each one.
+			resourcesResp, err := s.store.ListResources(ctx, v2.ResourcesServiceListResourcesRequest_builder{
+				ResourceTypeId: resourceTypeID,
+				PageToken:      resourcePageToken,
+				ActiveSyncId:   s.getActiveSyncID(),
+			}.Build())
+			if err != nil {
+				return err
+			}
+			entitlements := []*v2.Entitlement{}
+			for _, resource := range resourcesResp.GetList() {
+				displayName := ent.GetDisplayName()
+				if displayName == "" {
+					displayName = resource.GetDisplayName()
+				}
+				description := ent.GetDescription()
+				if description == "" {
+					description = resource.GetDescription()
+				}
+
+				entitlements = append(entitlements, &v2.Entitlement{
+					Resource:    resource,
+					Id:          entitlement.NewEntitlementID(resource, ent.GetSlug()),
+					DisplayName: displayName,
+					Description: description,
+					GrantableTo: ent.GetGrantableTo(),
+					Annotations: ent.GetAnnotations(),
+				})
+			}
+			err = s.store.PutEntitlements(ctx, entitlements...)
+			if err != nil {
+				return err
+			}
+			resourcePageToken = resourcesResp.GetNextPageToken()
+			if resourcePageToken == "" {
+				break
+			}
+		}
+	}
+
+	s.handleProgress(ctx, s.state.Current(), len(resp.GetList()))
+
+	if resp.GetNextPageToken() != "" {
+		err = s.state.NextPage(ctx, resp.GetNextPageToken())
+		if err != nil {
+			return err
+		}
+	} else {
 		s.state.FinishAction(ctx)
 	}
 
@@ -1774,6 +1955,10 @@ func (s *syncer) syncGrantsForResource(ctx context.Context, resourceID *v2.Resou
 	grants = append(grants, resp.GetList()...)
 
 	l := ctxzap.Extract(ctx)
+	resourcesToInsertMap := make(map[string]*v2.Resource, 0)
+	respAnnos := annotations.Annotations(resp.GetAnnotations())
+	insertResourceGrants := respAnnos.Contains(&v2.InsertResourceGrants{})
+
 	for _, grant := range grants {
 		grantAnnos := annotations.Annotations(grant.GetAnnotations())
 		if !s.dontExpandGrants && grantAnnos.Contains(&v2.GrantExpandable{}) {
@@ -1781,6 +1966,15 @@ func (s *syncer) syncGrantsForResource(ctx context.Context, resourceID *v2.Resou
 		}
 		if grantAnnos.ContainsAny(&v2.ExternalResourceMatchAll{}, &v2.ExternalResourceMatch{}, &v2.ExternalResourceMatchID{}) {
 			s.state.SetHasExternalResourcesGrants()
+		}
+
+		if insertResourceGrants {
+			resource := grant.GetEntitlement().GetResource()
+			bid, err := bid.MakeBid(resource)
+			if err != nil {
+				return err
+			}
+			resourcesToInsertMap[bid] = resource
 		}
 
 		if !s.state.ShouldFetchRelatedResources() {
@@ -1811,6 +2005,18 @@ func (s *syncer) syncGrantsForResource(ctx context.Context, resourceID *v2.Resou
 			}
 		}
 	}
+
+	if len(resourcesToInsertMap) > 0 {
+		resourcesToInsert := make([]*v2.Resource, 0)
+		for _, resource := range resourcesToInsertMap {
+			resourcesToInsert = append(resourcesToInsert, resource)
+		}
+		err = s.store.PutResources(ctx, resourcesToInsert...)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = s.store.PutGrants(ctx, grants...)
 	if err != nil {
 		return err
@@ -3002,11 +3208,12 @@ func WithSkipGrants(skip bool) SyncOpt {
 // NewSyncer returns a new syncer object.
 func NewSyncer(ctx context.Context, c types.ConnectorClient, opts ...SyncOpt) (Syncer, error) {
 	s := &syncer{
-		connector:             c,
-		skipEGForResourceType: make(map[string]bool),
-		resourceTypeTraits:    make(map[string][]v2.ResourceType_Trait),
-		counts:                NewProgressCounts(),
-		syncType:              connectorstore.SyncTypeFull,
+		connector:                       c,
+		skipEGForResourceType:           make(map[string]bool),
+		skipEntitlementsForResourceType: make(map[string]bool),
+		resourceTypeTraits:              make(map[string][]v2.ResourceType_Trait),
+		counts:                          NewProgressCounts(),
+		syncType:                        connectorstore.SyncTypeFull,
 	}
 
 	for _, o := range opts {
