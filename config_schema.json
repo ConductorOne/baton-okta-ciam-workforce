@@ -1,15 +1,83 @@
 {
   "fields": [
     {
-      "name": "api-token",
-      "displayName": "API Token",
-      "description": "Okta API token",
-      "isRequired": true,
-      "isSecret": true,
+      "name": "log-level",
+      "description": "The log level: debug, info, warn, error",
+      "isOps": true,
       "stringField": {
-        "rules": {
-          "isRequired": true
-        }
+        "defaultValue": "info"
+      }
+    },
+    {
+      "name": "log-level-debug-expires-at",
+      "description": "The timestamp indicating when debug-level logging should expire",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "session-store-maximum-size",
+      "description": "The maximum size of the local in-memory session store cache in bytes.",
+      "isOps": true,
+      "intField": {
+        "defaultValue": "15728640"
+      }
+    },
+    {
+      "name": "otel-collector-endpoint",
+      "description": "The endpoint of the OpenTelemetry collector to send observability data to (used for both tracing and logging if specific endpoints are not provided)",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-cert-path",
+      "description": "Path to a file containing a PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-cert",
+      "description": "A PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-insecure",
+      "description": "Allow insecure connections to the OpenTelemetry collector",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "otel-tracing-disabled",
+      "description": "Disable OpenTelemetry tracing",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "otel-logging-disabled",
+      "description": "Disable OpenTelemetry logging",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "health-check",
+      "description": "Enable the HTTP health check endpoint",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "health-check-port",
+      "description": "Port for the HTTP health check endpoint",
+      "isOps": true,
+      "intField": {
+        "defaultValue": "8081"
+      }
+    },
+    {
+      "name": "health-check-bind-address",
+      "description": "Bind address for health check server (127.0.0.1 for localhost-only)",
+      "isOps": true,
+      "stringField": {
+        "defaultValue": "127.0.0.1"
       }
     },
     {
@@ -17,6 +85,18 @@
       "displayName": "Domain",
       "description": "Okta domain (e.g., company.okta.com)",
       "isRequired": true,
+      "stringField": {
+        "rules": {
+          "isRequired": true
+        }
+      }
+    },
+    {
+      "name": "api-token",
+      "displayName": "API Token",
+      "description": "Okta API token",
+      "isRequired": true,
+      "isSecret": true,
       "stringField": {
         "rules": {
           "isRequired": true
@@ -40,64 +120,6 @@
       "description": "String to filter group names (only groups containing this string will be synced)",
       "stringField": {
         "rules": {}
-      }
-    },
-    {
-      "name": "log-level",
-      "description": "The log level: debug, info, warn, error",
-      "isOps": true,
-      "stringField": {
-        "defaultValue": "info"
-      }
-    },
-    {
-      "name": "log-level-debug-expires-at",
-      "description": "The timestamp indicating when debug-level logging should expire",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint",
-      "description": "The endpoint of the OpenTelemetry collector to send observability data to (used for both tracing and logging if specific endpoints are not provided)",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint-tls-cert",
-      "description": "A PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint-tls-cert-path",
-      "description": "Path to a file containing a PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint-tls-insecure",
-      "description": "Allow insecure connections to the OpenTelemetry collector",
-      "isOps": true,
-      "boolField": {}
-    },
-    {
-      "name": "otel-logging-disabled",
-      "description": "Disable OpenTelemetry logging",
-      "isOps": true,
-      "boolField": {}
-    },
-    {
-      "name": "otel-tracing-disabled",
-      "description": "Disable OpenTelemetry tracing",
-      "isOps": true,
-      "boolField": {}
-    },
-    {
-      "name": "session-store-maximum-size",
-      "description": "The maximum size of the local in-memory session store cache in bytes.",
-      "isOps": true,
-      "intField": {
-        "defaultValue": "15728640"
       }
     }
   ],
