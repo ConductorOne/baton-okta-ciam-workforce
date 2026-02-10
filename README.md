@@ -1,6 +1,6 @@
 ![Baton Logo](./baton-logo.png)
 
-# `baton-okta-ciam-workforce` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-okta-ciam-workforce.svg)](https://pkg.go.dev/github.com/conductorone/baton-okta-ciam-workforce) ![main ci](https://github.com/conductorone/baton-okta-ciam-workforce/actions/workflows/main.yaml/badge.svg)
+# `baton-okta-ciam-workforce` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-okta-ciam-workforce.svg)](https://pkg.go.dev/github.com/conductorone/baton-okta-ciam-workforce) ![ci](https://github.com/conductorone/baton-okta-ciam-workforce/actions/workflows/ci.yaml/badge.svg) ![verify](https://github.com/conductorone/baton-okta-ciam-workforce/actions/workflows/verify.yaml/badge.svg)
 
 `baton-okta-ciam-workforce` is a connector for built using the [Baton SDK](https://github.com/conductorone/baton-sdk).
 
@@ -52,7 +52,6 @@ small&mdash;our goal is to make identity and permissions sprawl less painful for
 everyone. If you have questions, problems, or ideas: Please open a GitHub Issue!
 
 See [CONTRIBUTING.md](https://github.com/ConductorOne/baton/blob/main/CONTRIBUTING.md) for more details.
-
 
 # Using the connector on the command Line
 
