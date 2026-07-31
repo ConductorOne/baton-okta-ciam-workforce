@@ -154,6 +154,7 @@ func (r *customRoleBuilder) customRoleResource(ctx context.Context, role *oktav5
 		roleLabel,
 		customRoleResourceType,
 		roleID,
-		[]resource.RoleTraitOption{resource.WithRoleProfile(profile)},
+		[]resource.RoleTraitOption{},
+		resource.WithResourceProfile(profile),
 	)
 }

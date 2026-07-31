@@ -338,8 +338,10 @@ func (u *userBuilder) userResource(ctx context.Context, user *oktav5.User) (*v2.
 		profile["c1_okta_raw_user_status"] = *user.Status
 	}
 
-	options := []resource.UserTraitOption{
-		resource.WithUserProfile(profile),
+	options := []resource.UserTraitOption{}
+
+	resourceOptions := []resource.ResourceOption{
+		resource.WithResourceProfile(profile),
 	}
 
 	// Set display name
@@ -353,7 +355,7 @@ func (u *userBuilder) userResource(ctx context.Context, user *oktav5.User) (*v2.
 
 	// Add created timestamp
 	if user.Created != nil {
-		options = append(options, resource.WithCreatedAt(*user.Created))
+		resourceOptions = append(resourceOptions, resource.WithResourceCreatedAt(*user.Created))
 	}
 
 	// Add last login timestamp - using Get() for NullableTime
@@ -407,11 +409,11 @@ func (u *userBuilder) userResource(ctx context.Context, user *oktav5.User) (*v2.
 	if user.Status != nil {
 		switch *user.Status {
 		case userStatusSuspended, userStatusDeprovisioned:
-			options = append(options, resource.WithDetailedStatus(v2.UserTrait_Status_STATUS_DISABLED, *user.Status))
+			resourceOptions = append(resourceOptions, resource.WithResourceStatus(v2.Status_RESOURCE_STATUS_DISABLED, *user.Status))
 		case userStatusActive, userStatusProvisioned, userStatusStaged, userStatusPasswordExpired, userStatusRecovery, userStatusLockedOut:
-			options = append(options, resource.WithDetailedStatus(v2.UserTrait_Status_STATUS_ENABLED, *user.Status))
+			resourceOptions = append(resourceOptions, resource.WithResourceStatus(v2.Status_RESOURCE_STATUS_ENABLED, *user.Status))
 		default:
-			options = append(options, resource.WithDetailedStatus(v2.UserTrait_Status_STATUS_UNSPECIFIED, *user.Status))
+			resourceOptions = append(resourceOptions, resource.WithResourceStatus(v2.Status_RESOURCE_STATUS_UNSPECIFIED, *user.Status))
 		}
 	}
 
@@ -425,6 +427,7 @@ func (u *userBuilder) userResource(ctx context.Context, user *oktav5.User) (*v2.
 		userResourceType,
 		userID,
 		options,
+		resourceOptions...,
 	)
 }
 
