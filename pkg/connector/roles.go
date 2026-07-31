@@ -121,7 +121,8 @@ func (r *roleBuilder) roleResource(ctx context.Context, role *StandardRole) (*v2
 		role.Label,
 		roleResourceType,
 		role.Type, // Use type as the resource ID for standard roles
-		[]resource.RoleTraitOption{resource.WithRoleProfile(profile)},
+		[]resource.RoleTraitOption{},
+		resource.WithResourceProfile(profile),
 	)
 }
 
