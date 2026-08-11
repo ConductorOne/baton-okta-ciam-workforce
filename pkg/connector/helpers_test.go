@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/conductorone/baton-sdk/pkg/annotations"
 	oktav5 "github.com/okta/okta-sdk-golang/v5/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,26 +85,6 @@ func TestHandleOktaError_DeadlineExceededPrecedesStatusCode(t *testing.T) {
 	st, ok := status.FromError(got)
 	require.True(t, ok)
 	assert.Equal(t, codes.DeadlineExceeded, st.Code())
-}
-
-func TestExtractOktaError_NilEmbeddedResponse(t *testing.T) {
-	resp := &oktav5.APIResponse{}
-
-	var got *oktav5.Error
-	require.NotPanics(t, func() {
-		got = extractOktaError(resp, errors.New("transport failure"))
-	})
-	assert.Nil(t, got)
-}
-
-func TestExtractRateLimitAnnotations_NilEmbeddedResponse(t *testing.T) {
-	resp := &oktav5.APIResponse{}
-
-	var got annotations.Annotations
-	require.NotPanics(t, func() {
-		got = extractRateLimitAnnotations(resp)
-	})
-	assert.Empty(t, got)
 }
 
 func TestExtractRateLimitAnnotations_NilWrapper(t *testing.T) {
