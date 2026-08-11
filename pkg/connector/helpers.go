@@ -45,11 +45,6 @@ func handleOktaError(resp *oktav5.APIResponse, err error) error {
 		return nil
 	}
 
-	// Handle context timeout errors
-	if errors.Is(err, context.DeadlineExceeded) {
-		return status.Error(codes.DeadlineExceeded, "request timeout")
-	}
-
 	// Handle URL timeout errors
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
@@ -58,34 +53,53 @@ func handleOktaError(resp *oktav5.APIResponse, err error) error {
 		}
 	}
 
-	// Handle HTTP response errors
+	// Handle context timeout errors
+	if errors.Is(err, context.DeadlineExceeded) {
+		return status.Error(codes.DeadlineExceeded, "request timeout")
+	}
+
+	// APIResponse embeds *http.Response, so resp != nil does not mean the
+	// embedded *http.Response is non-nil: the Okta SDK returns a non-nil
+	// APIResponse wrapping a nil *http.Response whenever the request never
+	// produced one (e.g. a context deadline during the SDK's own rate-limit
+	// wait). Resolve it once so every promoted-field access below, including
+	// inside extractOktaError, is gated on the field that can actually be nil.
+	var httpResp *http.Response
 	if resp != nil {
-		statusCode := resp.StatusCode
+		httpResp = resp.Response
+	}
+	if httpResp == nil {
+		// No response at all. The SDK flattened the cause into
+		// GenericOpenAPIError (a string, no Unwrap), so the errors.Is/As
+		// checks above cannot see it. Treat it as transient so the sync
+		// retries instead of discarding the whole sync.
+		return status.Error(codes.Unavailable, fmt.Sprintf("okta request failed with no response: %v", err))
+	}
+	statusCode := httpResp.StatusCode
 
-		// Handle rate limiting (429)
-		if statusCode == http.StatusTooManyRequests {
-			return status.Error(codes.Unavailable, "rate limit exceeded")
-		}
+	// Handle rate limiting (429)
+	if statusCode == http.StatusTooManyRequests {
+		return status.Error(codes.Unavailable, "rate limit exceeded")
+	}
 
-		// Handle server errors (500+)
-		if statusCode >= 500 {
-			return status.Error(codes.Unavailable, fmt.Sprintf("server error: status %d", statusCode))
-		}
+	// Handle server errors (500+)
+	if statusCode >= 500 {
+		return status.Error(codes.Unavailable, fmt.Sprintf("server error: status %d", statusCode))
+	}
 
-		// Handle not found (404)
-		if statusCode == http.StatusNotFound {
-			return status.Error(codes.NotFound, "resource not found")
-		}
+	// Handle not found (404)
+	if statusCode == http.StatusNotFound {
+		return status.Error(codes.NotFound, "resource not found")
+	}
 
-		// Handle forbidden (403)
-		if statusCode == http.StatusForbidden {
-			return status.Error(codes.PermissionDenied, "permission denied")
-		}
+	// Handle forbidden (403)
+	if statusCode == http.StatusForbidden {
+		return status.Error(codes.PermissionDenied, "permission denied")
+	}
 
-		// Handle unauthorized (401)
-		if statusCode == http.StatusUnauthorized {
-			return status.Error(codes.Unauthenticated, "authentication required")
-		}
+	// Handle unauthorized (401)
+	if statusCode == http.StatusUnauthorized {
+		return status.Error(codes.Unauthenticated, "authentication required")
 	}
 
 	// Try to extract Okta error from the response
