@@ -58,9 +58,17 @@ func handleOktaError(resp *oktav5.APIResponse, err error) error {
 		}
 	}
 
-	// Handle HTTP response errors
+	// APIResponse embeds *http.Response. The Okta SDK returns a non-nil
+	// APIResponse wrapping a nil *http.Response whenever the request never
+	// produced one, so every promoted field access must go through this.
+	var httpResp *http.Response
 	if resp != nil {
-		statusCode := resp.StatusCode
+		httpResp = resp.Response
+	}
+
+	// Handle HTTP response errors
+	if httpResp != nil {
+		statusCode := httpResp.StatusCode
 
 		// Handle rate limiting (429)
 		if statusCode == http.StatusTooManyRequests {
@@ -94,6 +102,13 @@ func handleOktaError(resp *oktav5.APIResponse, err error) error {
 		return convertOktaErrorToGRPC(oktaErr)
 	}
 
+	// No response at all. The SDK flattened the cause into
+	// GenericOpenAPIError (a string, no Unwrap), so the errors.Is/As checks
+	// above cannot see it. Treat it as transient so the sync retries.
+	if httpResp == nil {
+		return status.Error(codes.Unavailable, fmt.Sprintf("okta request failed with no response: %v", err))
+	}
+
 	// Return the original error if we couldn't convert it
 	return err
 }
@@ -111,7 +126,7 @@ func extractOktaError(resp *oktav5.APIResponse, originalErr error) *oktav5.Error
 	}
 
 	// If we have a response, try to read the body
-	if resp != nil && resp.Body != nil {
+	if resp != nil && resp.Response != nil && resp.Body != nil {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err == nil {
 			var oktaErr oktav5.Error
@@ -181,7 +196,7 @@ func wrapError(err error, message string) error {
 func extractRateLimitAnnotations(resp *oktav5.APIResponse) annotations.Annotations {
 	var annos annotations.Annotations
 
-	if resp == nil {
+	if resp == nil || resp.Response == nil {
 		return annos
 	}
 
